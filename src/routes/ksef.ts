@@ -7,7 +7,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 const KSEF_API_URL = process.env.KSEF_API_URL || 'https://ksef-test.mf.gov.pl';
 
-// Request authorization challenge
+// Request authorization challenge and return XML ready for signing
 router.post('/authorization-challenge', async (req: Request, res: Response) => {
   try {
     const { contextIdentifier } = req.body;
@@ -31,9 +31,34 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
       }
     );
 
+    const { challenge, timestamp } = response.data;
+
+    // Create XML structure ready for signing
+    const xmlToSign = `<?xml version="1.0" encoding="UTF-8"?>
+<InitSessionSignedRequest xmlns="http://ksef.mf.gov.pl/schema/gtw/svc/online/auth/request/2021/10/01/0001">
+  <Context>
+    <Challenge>${challenge}</Challenge>
+    <Identifier xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="${contextIdentifier.type === 'onip' ? 'SubjectIdentifierByCompanyType' : 'SubjectIdentifierToPersonType'}">
+      <Identifier>${contextIdentifier.identifier}</Identifier>
+    </Identifier>
+    <DocumentType>
+      <Service>KSeF</Service>
+      <FormCode>
+        <SystemCode>FA (2)</SystemCode>
+        <SchemaVersion>1-0E</SchemaVersion>
+        <TargetNamespace>http://crd.gov.pl/wzor/2023/06/29/12648/</TargetNamespace>
+        <Value>FA</Value>
+      </FormCode>
+    </DocumentType>
+    <RequestTimestamp>${timestamp}</RequestTimestamp>
+  </Context>
+</InitSessionSignedRequest>`;
+
     res.json({
-      challenge: response.data.challenge,
-      timestamp: response.data.timestamp
+      challenge,
+      timestamp,
+      xmlToSign,
+      message: 'XML ready for signing. Sign this XML and upload it to /init-session-signed endpoint.'
     });
   } catch (error: any) {
     console.error('KSeF API Error:', error.response?.data || error.message);
