@@ -33,9 +33,10 @@ app.get('/health', (req, res) => {
 
 app.get('/', (req, res) => {
   console.log('🏠 Root endpoint requested');
-  res.status(200).json({ 
+  res.status(200).setHeader('Content-Type', 'application/json').json({ 
     message: 'KSeF Backend API', 
     status: 'running',
+    healthy: true,
     timestamp: new Date().toISOString()
   });
 });
