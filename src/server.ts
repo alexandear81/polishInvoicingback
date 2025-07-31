@@ -22,6 +22,7 @@ app.use('/api/ksef', ksefRoutes);
 
 // Health check endpoints (Railway checks these)
 app.get('/health', (req, res) => {
+  console.log('🏥 Health check requested');
   res.status(200).json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
@@ -31,6 +32,7 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/', (req, res) => {
+  console.log('🏠 Root endpoint requested');
   res.status(200).json({ 
     message: 'KSeF Backend API', 
     status: 'running',
@@ -39,6 +41,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/ping', (req, res) => {
+  console.log('🏓 Ping requested');
   res.status(200).send('pong');
 });
 

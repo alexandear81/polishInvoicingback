@@ -16,6 +16,11 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`✅ Backend server running on ${HOST}:${PORT}`);
   console.log(`🎯 Health check available at: http://${HOST}:${PORT}/health`);
   console.log(`📊 Ready to accept connections`);
+  
+  // Keep alive heartbeat
+  setInterval(() => {
+    console.log(`💓 Server heartbeat - uptime: ${Math.floor(process.uptime())}s`);
+  }, 30000); // Every 30 seconds
 });
 
 server.on('error', (error: any) => {
@@ -25,6 +30,10 @@ server.on('error', (error: any) => {
   }
   process.exit(1);
 });
+
+// Keep the process alive
+server.keepAliveTimeout = 120000; // 2 minutes
+server.headersTimeout = 120000; // 2 minutes
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
