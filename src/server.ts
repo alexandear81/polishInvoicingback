@@ -20,9 +20,26 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api/ksef', ksefRoutes);
 
-// Health check
+// Health check endpoints (Railway checks these)
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    env: process.env.NODE_ENV || 'development'
+  });
+});
+
+app.get('/', (req, res) => {
+  res.status(200).json({ 
+    message: 'KSeF Backend API', 
+    status: 'running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/ping', (req, res) => {
+  res.status(200).send('pong');
 });
 
 // Error handling
