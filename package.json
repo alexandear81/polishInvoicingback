@@ -4,6 +4,10 @@
   "description": "Backend server for KSeF API integration",
   "main": "dist/index.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",

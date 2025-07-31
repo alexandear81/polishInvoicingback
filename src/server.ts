@@ -2,14 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import dotenv from 'dotenv';
 import { ksefRoutes } from './routes/ksef.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
-dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(helmet());
