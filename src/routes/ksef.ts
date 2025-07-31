@@ -58,7 +58,6 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
       challenge,
       timestamp,
       xmlToSign: Buffer.from(xmlToSign).toString('base64'),
-      xmlToSignRaw: xmlToSign, // Optional: also include raw XML for debugging
       message: 'XML ready for signing. Decode base64, sign the XML, and upload it to /init-session-signed endpoint.'
     });
   } catch (error: any) {
