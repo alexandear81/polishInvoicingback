@@ -54,8 +54,8 @@ if (fs.existsSync('dist')) {
 } else {
   console.log('dist directory not found, trying to build...');
   try {
-    process.chdir('..');
-    console.log('Changed to directory:', process.cwd());
+    // Stay in current directory - package.json is here!
+    console.log('Running build in current directory (where package.json is)...');
     execSync('npm run build', { stdio: 'inherit' });
     
     console.log('After build, listing files:');
