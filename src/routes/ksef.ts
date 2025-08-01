@@ -1,6 +1,8 @@
 import express, { Request, Response } from 'express';
 import axios from 'axios';
 import multer from 'multer';
+import zlib from 'zlib';
+import crypto from 'crypto';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -17,19 +19,35 @@ const getKsefUrl = (environment?: string): string => {
   return KSEF_ENVIRONMENTS[env] || process.env.KSEF_API_URL || KSEF_ENVIRONMENTS.test;
 };
 
-// Request authorization challenge and return XML ready for signing
-router.post('/authorization-challenge', async (req: Request, res: Response) => {
+// Get KSeF public certificate directly from KSeF API
+const getKsefPublicKey = async (environment?: string): Promise<string> => {
+  console.log('Fetching KSeF public certificate for environment:', environment || 'test');
+  
   try {
-    const { contextIdentifier, environment } = req.body;
-
-    if (!contextIdentifier || !contextIdentifier.type || !contextIdentifier.identifier) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: contextIdentifier.type and contextIdentifier.identifier' 
-      });
-    }
-
     const ksefUrl = getKsefUrl(environment);
+    const response = await axios.get(`${ksefUrl}/api/online/Session/AuthorisationChallenge/PublicKey`, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'PolishInvoicing/1.0'
+      },
+      timeout: 30000
+    });
 
+    const publicKey = response.data.publicKey || response.data;
+    console.log('Successfully retrieved KSeF public key');
+    return publicKey;
+  } catch (error) {
+    console.error('Failed to fetch KSeF public key:', error);
+    throw new Error('Failed to get KSeF public certificate from official API');
+  }
+};
+
+// Get authorization challenge from KSeF API
+const getAuthorisationChallenge = async (contextIdentifier: { type: string; identifier: string }, environment?: string): Promise<{ challenge: string; timestamp: string }> => {
+  console.log('Requesting authorization challenge for:', contextIdentifier.type, contextIdentifier.identifier, 'in environment:', environment || 'test');
+  
+  try {
+    const ksefUrl = getKsefUrl(environment);
     const response = await axios.post(
       `${ksefUrl}/api/online/Session/AuthorisationChallenge`,
       { contextIdentifier },
@@ -44,6 +62,27 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
     );
 
     const { challenge, timestamp } = response.data;
+    console.log('Successfully received challenge and timestamp from KSeF');
+    return { challenge, timestamp };
+  } catch (error) {
+    console.error('Failed to get authorization challenge:', error);
+    throw new Error('Failed to get authorization challenge from KSeF API');
+  }
+};
+
+// Request authorization challenge and return XML ready for signing
+router.post('/authorization-challenge', async (req: Request, res: Response) => {
+  try {
+    const { contextIdentifier, environment } = req.body;
+
+    if (!contextIdentifier || !contextIdentifier.type || !contextIdentifier.identifier) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: contextIdentifier.type and contextIdentifier.identifier' 
+      });
+    }
+
+    // Use the reusable function to get challenge and timestamp
+    const { challenge, timestamp } = await getAuthorisationChallenge(contextIdentifier, environment);
 
     // Create XML structure ready for signing
     const xmlToSign = `<?xml version="1.0" encoding="UTF-8"?>
@@ -81,18 +120,266 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
   }
 });
 
+// Request session token (after signed XML is received)
+router.post('/request-session-token', async (req: Request, res: Response) => {
+  try {
+    const { signedXmlBase64, environment } = req.body;
+
+    if (!signedXmlBase64) {
+      return res.status(400).json({ 
+        error: 'Missing required field: signedXmlBase64' 
+      });
+    }
+
+    // Decode signed XML
+    let signedXmlContent: string;
+    try {
+      const decodedBuffer = Buffer.from(signedXmlBase64, 'base64');
+      signedXmlContent = decodedBuffer.toString('utf-8');
+    } catch (error) {
+      return res.status(400).json({ 
+        error: 'Invalid base64 encoded signed XML' 
+      });
+    }
+
+    const ksefUrl = getKsefUrl(environment);
+
+    const response = await axios.post(
+      `${ksefUrl}/api/online/Session/InitSessionSignedRequest`,
+      signedXmlContent,
+      {
+        headers: {
+          'Content-Type': 'application/xml',
+          'Accept': 'application/json',
+          'User-Agent': 'PolishInvoicing/1.0'
+        },
+        timeout: 30000
+      }
+    );
+
+    // Extract the session token - this is what user will use for authentication
+    const sessionToken = response.data.sessionToken?.token || response.data.sessionToken;
+    
+    res.json({
+      sessionToken,
+      timestamp: response.data.timestamp,
+      referenceNumber: response.data.referenceNumber,
+      message: 'Session token generated successfully. Use this token for all authenticated operations.'
+    });
+  } catch (error: any) {
+    console.error('KSeF Request Session Token Error:', error.response?.data || error.message);
+    res.status(error.response?.status || 500).json({
+      error: 'Failed to generate session token',
+      details: error.response?.data || error.message
+    });
+  }
+});
+
+// Query invoices (for viewing incoming/outgoing invoices)
+router.post('/query-invoices', async (req: Request, res: Response) => {
+  try {
+    const sessionToken = req.headers['session-token'] as string;
+    const { 
+      environment, 
+      subjectType = 'subject1',
+      type = 'incremental', 
+      dateFrom, 
+      dateTo,
+      pageSize = 10,
+      pageOffset = 0 
+    } = req.body;
+
+    if (!sessionToken) {
+      return res.status(400).json({ error: 'Missing session token in headers' });
+    }
+
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: dateFrom and dateTo (ISO format)' 
+      });
+    }
+
+    const ksefUrl = getKsefUrl(environment);
+
+    const queryCriteria = {
+      subjectType,
+      type,
+      acquisitionTimestampThresholdFrom: dateFrom,
+      acquisitionTimestampThresholdTo: dateTo
+    };
+
+    const response = await axios.post(
+      `${ksefUrl}/api/online/Query/Invoice/Sync?PageSize=${pageSize}&PageOffset=${pageOffset}`,
+      { queryCriteria },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'SessionToken': sessionToken,
+          'User-Agent': 'PolishInvoicing/1.0'
+        },
+        timeout: 30000
+      }
+    );
+
+    res.json(response.data);
+  } catch (error: any) {
+    console.error('KSeF Query Invoices Error:', error.response?.data || error.message);
+    res.status(error.response?.status || 500).json({
+      error: 'Failed to query invoices',
+      details: error.response?.data || error.message
+    });
+  }
+});
+
+// Get specific invoice by KSeF ID
+router.get('/invoice/:ksefId', async (req: Request, res: Response) => {
+  try {
+    const { ksefId } = req.params;
+    const sessionToken = req.headers['session-token'] as string;
+    const environment = req.query.environment as string;
+
+    if (!sessionToken) {
+      return res.status(400).json({ error: 'Missing session token in headers' });
+    }
+
+    const ksefUrl = getKsefUrl(environment);
+
+    const response = await axios.get(
+      `${ksefUrl}/api/online/Invoice/Get/${ksefId}`,
+      {
+        headers: {
+          'Accept': 'application/octet-stream',
+          'SessionToken': sessionToken,
+          'User-Agent': 'PolishInvoicing/1.0'
+        },
+        timeout: 30000,
+        responseType: 'arraybuffer'
+      }
+    );
+
+    // Return invoice as base64 for safe transport
+    const base64Invoice = Buffer.from(response.data).toString('base64');
+    
+    res.json({
+      ksefId,
+      invoiceBase64: base64Invoice,
+      contentType: response.headers['content-type'] || 'application/xml',
+      message: 'Invoice retrieved successfully. Decode base64 to get original content.'
+    });
+  } catch (error: any) {
+    console.error('KSeF Get Invoice Error:', error.response?.data || error.message);
+    res.status(error.response?.status || 500).json({
+      error: 'Failed to get invoice',
+      details: error.response?.data || error.message
+    });
+  }
+});
+
+// Initialize session with token (simplified - user provides NIP, token, environment)
+router.post('/init-session-token', async (req: Request, res: Response) => {
+  try {
+    const { nip, authToken, environment } = req.body;
+
+    if (!nip || !authToken) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: nip and authToken' 
+      });
+    }
+
+    console.log('Initializing token session for NIP:', nip, 'in environment:', environment || 'test');
+
+    // Step 1: Get authorization challenge using reusable function
+    const { challenge, timestamp } = await getAuthorisationChallenge({
+      type: 'onip',
+      identifier: nip
+    }, environment);
+
+    // Step 2: Get KSeF public key
+    const publicKey = await getKsefPublicKey(environment);
+
+    // Step 3: Create and encrypt the token
+    const tokenString = `${timestamp}|${authToken}`;
+    const encryptedToken = crypto.publicEncrypt({
+      key: publicKey,
+      padding: crypto.constants.RSA_PKCS1_PADDING
+    }, Buffer.from(tokenString, 'utf-8')).toString('base64');
+
+    console.log('Token encrypted with KSeF public key');
+
+    // Step 4: Create XML for token-based initialization
+    const xmlToSend = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ns3:InitSessionTokenRequest xmlns="http://ksef.mf.gov.pl/schema/gtw/svc/online/types/2021/10/01/0001" xmlns:ns2="http://ksef.mf.gov.pl/schema/gtw/svc/types/2021/10/01/0001" xmlns:ns3="http://ksef.mf.gov.pl/schema/gtw/svc/online/auth/request/2021/10/01/0001">
+  <ns3:Context>
+    <Challenge>${challenge}</Challenge>
+    <Identifier xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns2:SubjectIdentifierByCompanyType">
+      <ns2:Identifier>${nip}</ns2:Identifier>
+    </Identifier>
+    <DocumentType>
+      <ns2:Service>KSeF</ns2:Service>
+      <ns2:FormCode>
+        <ns2:SystemCode>FA (2)</ns2:SystemCode>
+        <ns2:SchemaVersion>1-0E</ns2:SchemaVersion>
+        <ns2:TargetNamespace>http://crd.gov.pl/wzor/2023/06/29/12648/</ns2:TargetNamespace>
+        <ns2:Value>FA</ns2:Value>
+      </ns2:FormCode>
+    </DocumentType>
+    <Token>${encryptedToken}</Token>
+  </ns3:Context>
+</ns3:InitSessionTokenRequest>`;
+
+    // Step 5: Initialize session with token
+    const ksefUrl = getKsefUrl(environment);
+    const response = await axios.post(
+      `${ksefUrl}/api/online/Session/InitToken`,
+      xmlToSend,
+      {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Accept': 'application/json',
+          'User-Agent': 'PolishInvoicing/1.0'
+        },
+        timeout: 30000
+      }
+    );
+
+    res.json({
+      sessionToken: response.data.sessionToken?.token || response.data.sessionToken || response.data,
+      timestamp: response.data.timestamp,
+      referenceNumber: response.data.referenceNumber,
+      rawResponse: response.data
+    });
+  } catch (error: any) {
+    console.error('KSeF Init Token Error:', error.response?.data || error.message);
+    res.status(error.response?.status || 500).json({
+      error: 'Failed to initialize session with token',
+      details: error.response?.data || error.message
+    });
+  }
+});
+
 // Initialize session with signed request (base64 encoded XML)
 router.post('/init-session-signed', upload.single('signedXml'), async (req: Request, res: Response) => {
   try {
-    const { signedXmlBase64, environment } = req.body;
+    const { signedXmlBase64, environment, compressed = false } = req.body;
     let signedXmlContent: string;
 
     // Support base64 encoded XML (primary method) or file upload (fallback)
     if (signedXmlBase64) {
       try {
-        signedXmlContent = Buffer.from(signedXmlBase64, 'base64').toString('utf-8');
+        const decodedBuffer = Buffer.from(signedXmlBase64, 'base64');
+        
+        if (compressed) {
+          // Decompress gzipped content
+          signedXmlContent = zlib.gunzipSync(decodedBuffer).toString('utf-8');
+        } else {
+          // Direct conversion to string
+          signedXmlContent = decodedBuffer.toString('utf-8');
+        }
       } catch (error) {
-        return res.status(400).json({ error: 'Invalid base64 encoded XML' });
+        return res.status(400).json({ 
+          error: compressed ? 'Invalid compressed base64 encoded XML' : 'Invalid base64 encoded XML' 
+        });
       }
     } else if (req.file) {
       signedXmlContent = req.file.buffer.toString('utf-8');
@@ -135,7 +422,7 @@ router.post('/init-session-signed', upload.single('signedXml'), async (req: Requ
 // Send invoice
 router.post('/send-invoice', async (req: Request, res: Response) => {
   try {
-    const { sessionToken, invoiceXmlBase64, environment } = req.body;
+    const { sessionToken, invoiceXmlBase64, environment, contentType = 'xml' } = req.body;
 
     if (!sessionToken || !invoiceXmlBase64) {
       return res.status(400).json({ 
@@ -143,27 +430,66 @@ router.post('/send-invoice', async (req: Request, res: Response) => {
       });
     }
 
-    // Decode base64 encoded XML
-    let xmlContent: string;
+    // Validate contentType parameter
+    const validContentTypes = ['xml', 'gzip', 'zip'];
+    if (!validContentTypes.includes(contentType)) {
+      return res.status(400).json({ 
+        error: `Invalid contentType. Must be one of: ${validContentTypes.join(', ')}` 
+      });
+    }
+
+    let contentToSend: string | Buffer;
+    let httpContentType: string;
+
     try {
-      xmlContent = Buffer.from(invoiceXmlBase64, 'base64').toString('utf-8');
+      const decodedBuffer = Buffer.from(invoiceXmlBase64, 'base64');
+      
+      switch (contentType) {
+        case 'zip':
+          // ZIP file - send as binary data
+          contentToSend = decodedBuffer;
+          httpContentType = 'application/zip';
+          console.log('Sending ZIP file with size:', decodedBuffer.length, 'bytes');
+          break;
+          
+        case 'gzip':
+          // Gzipped XML - decompress first
+          contentToSend = zlib.gunzipSync(decodedBuffer).toString('utf-8');
+          httpContentType = 'application/xml';
+          console.log('Sending decompressed XML content');
+          break;
+          
+        case 'xml':
+        default:
+          // Plain XML - convert to string
+          contentToSend = decodedBuffer.toString('utf-8');
+          httpContentType = 'application/xml';
+          console.log('Sending plain XML content');
+          break;
+      }
     } catch (error) {
-      return res.status(400).json({ error: 'Invalid base64 encoded invoice XML' });
+      return res.status(400).json({ 
+        error: `Invalid base64 encoded ${contentType} content: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      });
     }
 
     const ksefUrl = getKsefUrl(environment);
 
     const response = await axios.post(
       `${ksefUrl}/api/online/Invoice/Send`,
-      xmlContent,
+      contentToSend,
       {
         headers: {
-          'Content-Type': 'application/xml',
+          'Content-Type': httpContentType,
           'Accept': 'application/json',
           'SessionToken': sessionToken,
           'User-Agent': 'PolishInvoicing/1.0'
         },
-        timeout: 30000
+        timeout: 30000,
+        // Ensure binary data is handled properly
+        responseType: 'json',
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
       }
     );
 
