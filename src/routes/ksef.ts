@@ -81,24 +81,24 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
   }
 });
 
-// Initialize session with signed request (supports both file upload and base64)
+// Initialize session with signed request (base64 encoded XML)
 router.post('/init-session-signed', upload.single('signedXml'), async (req: Request, res: Response) => {
   try {
     const { signedXmlBase64, environment } = req.body;
     let signedXmlContent: string;
 
-    // Support both file upload and base64 encoded XML
-    if (req.file) {
-      signedXmlContent = req.file.buffer.toString('utf-8');
-    } else if (signedXmlBase64) {
+    // Support base64 encoded XML (primary method) or file upload (fallback)
+    if (signedXmlBase64) {
       try {
         signedXmlContent = Buffer.from(signedXmlBase64, 'base64').toString('utf-8');
       } catch (error) {
         return res.status(400).json({ error: 'Invalid base64 encoded XML' });
       }
+    } else if (req.file) {
+      signedXmlContent = req.file.buffer.toString('utf-8');
     } else {
       return res.status(400).json({ 
-        error: 'No signed XML provided. Use either file upload (signedXml) or base64 string (signedXmlBase64)' 
+        error: 'No signed XML provided. Use signedXmlBase64 field with base64 encoded XML' 
       });
     }
 
@@ -135,24 +135,20 @@ router.post('/init-session-signed', upload.single('signedXml'), async (req: Requ
 // Send invoice
 router.post('/send-invoice', async (req: Request, res: Response) => {
   try {
-    const { sessionToken, invoiceXml, invoiceXmlBase64, environment } = req.body;
+    const { sessionToken, invoiceXmlBase64, environment } = req.body;
 
-    if (!sessionToken || (!invoiceXml && !invoiceXmlBase64)) {
+    if (!sessionToken || !invoiceXmlBase64) {
       return res.status(400).json({ 
-        error: 'Missing required fields: sessionToken and either invoiceXml or invoiceXmlBase64' 
+        error: 'Missing required fields: sessionToken and invoiceXmlBase64' 
       });
     }
 
-    // Support both raw XML and base64 encoded XML
+    // Decode base64 encoded XML
     let xmlContent: string;
-    if (invoiceXmlBase64) {
-      try {
-        xmlContent = Buffer.from(invoiceXmlBase64, 'base64').toString('utf-8');
-      } catch (error) {
-        return res.status(400).json({ error: 'Invalid base64 encoded invoice XML' });
-      }
-    } else {
-      xmlContent = invoiceXml;
+    try {
+      xmlContent = Buffer.from(invoiceXmlBase64, 'base64').toString('utf-8');
+    } catch (error) {
+      return res.status(400).json({ error: 'Invalid base64 encoded invoice XML' });
     }
 
     const ksefUrl = getKsefUrl(environment);
