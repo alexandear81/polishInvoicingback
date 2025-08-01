@@ -5,12 +5,22 @@ import multer from 'multer';
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-const KSEF_API_URL = process.env.KSEF_API_URL || 'https://ksef-test.mf.gov.pl';
+// KSeF environment URLs
+const KSEF_ENVIRONMENTS = {
+  test: 'https://ksef-test.mf.gov.pl',
+  demo: 'https://ksef-demo.mf.gov.pl',
+  prod: 'https://ksef.mf.gov.pl'
+};
+
+const getKsefUrl = (environment?: string): string => {
+  const env = environment?.toLowerCase() as keyof typeof KSEF_ENVIRONMENTS;
+  return KSEF_ENVIRONMENTS[env] || process.env.KSEF_API_URL || KSEF_ENVIRONMENTS.test;
+};
 
 // Request authorization challenge and return XML ready for signing
 router.post('/authorization-challenge', async (req: Request, res: Response) => {
   try {
-    const { contextIdentifier } = req.body;
+    const { contextIdentifier, environment } = req.body;
 
     if (!contextIdentifier || !contextIdentifier.type || !contextIdentifier.identifier) {
       return res.status(400).json({ 
@@ -18,8 +28,10 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
       });
     }
 
+    const ksefUrl = getKsefUrl(environment);
+
     const response = await axios.post(
-      `${KSEF_API_URL}/api/online/Session/AuthorisationChallenge`,
+      `${ksefUrl}/api/online/Session/AuthorisationChallenge`,
       { contextIdentifier },
       {
         headers: {
@@ -69,17 +81,31 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
   }
 });
 
-// Initialize session with signed request
+// Initialize session with signed request (supports both file upload and base64)
 router.post('/init-session-signed', upload.single('signedXml'), async (req: Request, res: Response) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No signed XML file provided' });
+    const { signedXmlBase64, environment } = req.body;
+    let signedXmlContent: string;
+
+    // Support both file upload and base64 encoded XML
+    if (req.file) {
+      signedXmlContent = req.file.buffer.toString('utf-8');
+    } else if (signedXmlBase64) {
+      try {
+        signedXmlContent = Buffer.from(signedXmlBase64, 'base64').toString('utf-8');
+      } catch (error) {
+        return res.status(400).json({ error: 'Invalid base64 encoded XML' });
+      }
+    } else {
+      return res.status(400).json({ 
+        error: 'No signed XML provided. Use either file upload (signedXml) or base64 string (signedXmlBase64)' 
+      });
     }
 
-    const signedXmlContent = req.file.buffer.toString('utf-8');
+    const ksefUrl = getKsefUrl(environment);
 
     const response = await axios.post(
-      `${KSEF_API_URL}/api/online/Session/InitSessionSignedRequest`,
+      `${ksefUrl}/api/online/Session/InitSessionSignedRequest`,
       signedXmlContent,
       {
         headers: {
@@ -109,17 +135,31 @@ router.post('/init-session-signed', upload.single('signedXml'), async (req: Requ
 // Send invoice
 router.post('/send-invoice', async (req: Request, res: Response) => {
   try {
-    const { sessionToken, invoiceXml } = req.body;
+    const { sessionToken, invoiceXml, invoiceXmlBase64, environment } = req.body;
 
-    if (!sessionToken || !invoiceXml) {
+    if (!sessionToken || (!invoiceXml && !invoiceXmlBase64)) {
       return res.status(400).json({ 
-        error: 'Missing required fields: sessionToken and invoiceXml' 
+        error: 'Missing required fields: sessionToken and either invoiceXml or invoiceXmlBase64' 
       });
     }
 
+    // Support both raw XML and base64 encoded XML
+    let xmlContent: string;
+    if (invoiceXmlBase64) {
+      try {
+        xmlContent = Buffer.from(invoiceXmlBase64, 'base64').toString('utf-8');
+      } catch (error) {
+        return res.status(400).json({ error: 'Invalid base64 encoded invoice XML' });
+      }
+    } else {
+      xmlContent = invoiceXml;
+    }
+
+    const ksefUrl = getKsefUrl(environment);
+
     const response = await axios.post(
-      `${KSEF_API_URL}/api/online/Invoice/Send`,
-      invoiceXml,
+      `${ksefUrl}/api/online/Invoice/Send`,
+      xmlContent,
       {
         headers: {
           'Content-Type': 'application/xml',
@@ -151,13 +191,16 @@ router.get('/invoice-status/:referenceNumber', async (req: Request, res: Respons
   try {
     const { referenceNumber } = req.params;
     const sessionToken = req.headers['session-token'] as string;
+    const environment = req.query.environment as string;
 
     if (!sessionToken) {
       return res.status(400).json({ error: 'Missing session token in headers' });
     }
 
+    const ksefUrl = getKsefUrl(environment);
+
     const response = await axios.get(
-      `${KSEF_API_URL}/api/online/Invoice/Status/${referenceNumber}`,
+      `${ksefUrl}/api/online/Invoice/Status/${referenceNumber}`,
       {
         headers: {
           'Accept': 'application/json',
@@ -182,13 +225,16 @@ router.get('/invoice-status/:referenceNumber', async (req: Request, res: Respons
 router.post('/terminate-session', async (req: Request, res: Response) => {
   try {
     const sessionToken = req.headers['session-token'] as string;
+    const { environment } = req.body;
 
     if (!sessionToken) {
       return res.status(400).json({ error: 'Missing session token in headers' });
     }
 
+    const ksefUrl = getKsefUrl(environment);
+
     const response = await axios.post(
-      `${KSEF_API_URL}/api/online/Session/Terminate`,
+      `${ksefUrl}/api/online/Session/Terminate`,
       {},
       {
         headers: {
