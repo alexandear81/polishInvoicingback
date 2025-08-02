@@ -124,6 +124,9 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
 router.post('/request-session-token', async (req: Request, res: Response) => {
   try {
     const { signedXmlBase64, environment } = req.body;
+    
+    console.log('🔐 Processing signed XML for session token...');
+    console.log('🌐 Environment:', environment || 'test');
 
     if (!signedXmlBase64) {
       return res.status(400).json({ 
@@ -136,13 +139,17 @@ router.post('/request-session-token', async (req: Request, res: Response) => {
     try {
       const decodedBuffer = Buffer.from(signedXmlBase64, 'base64');
       signedXmlContent = decodedBuffer.toString('utf-8');
+      console.log('✅ Successfully decoded signed XML, length:', signedXmlContent.length);
+      console.log('📄 XML preview (first 500 chars):', signedXmlContent.substring(0, 500));
     } catch (error) {
+      console.error('❌ Failed to decode base64 XML:', error);
       return res.status(400).json({ 
         error: 'Invalid base64 encoded signed XML' 
       });
     }
 
     const ksefUrl = getKsefUrl(environment);
+    console.log('🎯 KSeF URL:', ksefUrl);
 
     const response = await axios.post(
       `${ksefUrl}/api/online/Session/InitSessionSignedRequest`,
@@ -167,10 +174,25 @@ router.post('/request-session-token', async (req: Request, res: Response) => {
       message: 'Session token generated successfully. Use this token for all authenticated operations.'
     });
   } catch (error: any) {
-    console.error('KSeF Request Session Token Error:', error.response?.data || error.message);
+    console.error('❌ KSeF Request Session Token Error - Full Details:');
+    console.error('📊 Status:', error.response?.status);
+    console.error('📄 Response Data:', JSON.stringify(error.response?.data, null, 2));
+    console.error('🔍 Error Message:', error.message);
+    console.error('🌐 Request URL:', error.config?.url);
+    console.error('📝 Request Headers:', JSON.stringify(error.config?.headers, null, 2));
+    
+    // If there's a nested exception with details, log that too
+    if (error.response?.data?.exception?.exceptionDetailList) {
+      console.error('🚨 KSeF Exception Details:');
+      error.response.data.exception.exceptionDetailList.forEach((detail: any, index: number) => {
+        console.error(`   Detail ${index + 1}:`, JSON.stringify(detail, null, 2));
+      });
+    }
+    
     res.status(error.response?.status || 500).json({
       error: 'Failed to generate session token',
-      details: error.response?.data || error.message
+      details: error.response?.data || error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });
