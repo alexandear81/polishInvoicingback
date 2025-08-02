@@ -10,3 +10,6 @@ Thumbs.db
 
 # KSeF reference files and documentation
 src/references/
+
+# KSeF example implementation (private)
+ksef-python-client-main/

@@ -84,26 +84,26 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
     // Use the reusable function to get challenge and timestamp
     const { challenge, timestamp } = await getAuthorisationChallenge(contextIdentifier, environment);
 
-    // Create XML structure ready for signing
+    // Create XML structure ready for signing (corrected based on KSeF Python client)
     const xmlToSign = `<?xml version="1.0" encoding="UTF-8"?>
-<InitSessionSignedRequest xmlns="http://ksef.mf.gov.pl/schema/gtw/svc/online/auth/request/2021/10/01/0001">
-  <Context>
+<ns3:InitSessionSignedRequest xmlns="http://ksef.mf.gov.pl/schema/gtw/svc/online/types/2021/10/01/0001" xmlns:ns2="http://ksef.mf.gov.pl/schema/gtw/svc/types/2021/10/01/0001" xmlns:ns3="http://ksef.mf.gov.pl/schema/gtw/svc/online/auth/request/2021/10/01/0001">
+  <ns3:Context>
     <Challenge>${challenge}</Challenge>
-    <Identifier xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="${contextIdentifier.type === 'onip' ? 'SubjectIdentifierByCompanyType' : 'SubjectIdentifierToPersonType'}">
-      <Identifier>${contextIdentifier.identifier}</Identifier>
+    <Identifier xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="${contextIdentifier.type === 'onip' ? 'ns2:SubjectIdentifierByCompanyType' : 'ns2:SubjectIdentifierToPersonType'}">
+      <ns2:Identifier>${contextIdentifier.identifier}</ns2:Identifier>
     </Identifier>
     <DocumentType>
-      <Service>KSeF</Service>
-      <FormCode>
-        <SystemCode>FA (2)</SystemCode>
-        <SchemaVersion>1-0E</SchemaVersion>
-        <TargetNamespace>http://crd.gov.pl/wzor/2023/06/29/12648/</TargetNamespace>
-        <Value>FA</Value>
-      </FormCode>
+      <ns2:Service>KSeF</ns2:Service>
+      <ns2:FormCode>
+        <ns2:SystemCode>FA (1)</ns2:SystemCode>
+        <ns2:SchemaVersion>1-0E</ns2:SchemaVersion>
+        <ns2:TargetNamespace>http://crd.gov.pl/wzor/2021/11/29/11089/</ns2:TargetNamespace>
+        <ns2:Value>FA</ns2:Value>
+      </ns2:FormCode>
     </DocumentType>
-    <RequestTimestamp>${timestamp}</RequestTimestamp>
-  </Context>
-</InitSessionSignedRequest>`;
+    <Type>SerialNumber</Type>
+  </ns3:Context>
+</ns3:InitSessionSignedRequest>`;
 
     res.json({
       challenge,
