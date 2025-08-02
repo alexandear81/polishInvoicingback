@@ -49,11 +49,37 @@ app.use(cors({
 app.use((req, res, next) => {
   console.log(`🌐 ${req.method} ${req.path} - Origin: ${req.get('Origin') || 'No Origin'}`);
   console.log(`📋 Headers: ${JSON.stringify(req.headers, null, 2)}`);
+  
+  // Special logging for request-session-token
+  if (req.path.includes('request-session-token')) {
+    console.log('🔍 SPECIAL DEBUG: request-session-token endpoint hit!');
+    console.log('📦 Body available:', !!req.body);
+    console.log('📦 Body keys:', Object.keys(req.body || {}));
+    console.log('📦 Content-Length:', req.headers['content-length']);
+    
+    if (req.body && req.body.signedXmlBase64) {
+      console.log('📦 signedXmlBase64 length:', req.body.signedXmlBase64.length);
+      console.log('📦 signedXmlBase64 preview:', req.body.signedXmlBase64.substring(0, 100));
+    }
+  }
+  
   next();
 });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Body parsing middleware with error handling
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Add error handling for body parsing
+app.use((error: any, req: any, res: any, next: any) => {
+  if (error instanceof SyntaxError && 'body' in error) {
+    console.error('❌ JSON Parse Error:', error.message);
+    console.error('📍 Path:', req.path);
+    console.error('📦 Raw body length:', req.headers['content-length']);
+    return res.status(400).json({ error: 'Invalid JSON in request body' });
+  }
+  next();
+});
 
 // Routes
 app.use('/api/ksef', ksefRoutes);
