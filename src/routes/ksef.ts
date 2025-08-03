@@ -152,11 +152,11 @@ router.post('/request-session-token', async (req: Request, res: Response) => {
     console.log('🎯 KSeF URL:', ksefUrl);
 
     const response = await axios.post(
-      `${ksefUrl}/api/online/Session/InitSessionSignedRequest`,
+      `${ksefUrl}/api/online/Session/InitSigned`,
       signedXmlContent,
       {
         headers: {
-          'Content-Type': 'application/xml',
+          'Content-Type': 'application/octet-stream; charset=utf-8',
           'Accept': 'application/json',
           'User-Agent': 'PolishInvoicing/1.0'
         },
@@ -414,11 +414,11 @@ router.post('/init-session-signed', upload.single('signedXml'), async (req: Requ
     const ksefUrl = getKsefUrl(environment);
 
     const response = await axios.post(
-      `${ksefUrl}/api/online/Session/InitSessionSignedRequest`,
+      `${ksefUrl}/api/online/Session/InitSigned`,
       signedXmlContent,
       {
         headers: {
-          'Content-Type': 'application/xml',
+          'Content-Type': 'application/octet-stream; charset=utf-8',
           'Accept': 'application/json',
           'User-Agent': 'PolishInvoicing/1.0'
         },
