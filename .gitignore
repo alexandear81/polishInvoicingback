@@ -31,3 +31,9 @@ debug_*.xml
 *_debug.xml
 test_*.py
 test_*.js
+
+# Recent test files for KSeF debugging
+test-unsigned-xml.py
+debug-xml-template.py
+test-rate-limit.py
+wait-and-test.py

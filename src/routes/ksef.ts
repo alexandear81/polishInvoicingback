@@ -86,24 +86,24 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
 
     // Create XML structure ready for signing (corrected based on KSeF Java client)
     const xmlToSign = `<?xml version="1.0" encoding="UTF-8"?>
-<ns3:InitSessionSignedRequest xmlns="http://ksef.mf.gov.pl/schema/gtw/svc/online/types/2021/10/01/0001" xmlns:ns2="http://ksef.mf.gov.pl/schema/gtw/svc/types/2021/10/01/0001" xmlns:ns3="http://ksef.mf.gov.pl/schema/gtw/svc/online/auth/request/2021/10/01/0001">
-  <ns3:Context>
+<ns2:AuthRequest xmlns:ns2="http://ksef.mf.gov.pl/schema/gtw/svc/online/auth/request/2021/10/01/0001" xmlns="http://ksef.mf.gov.pl/schema/gtw/svc/online/types/2021/10/01/0001" xmlns:ns3="http://ksef.mf.gov.pl/schema/gtw/svc/types/2021/10/01/0001">
+  <ns2:Context>
     <Challenge>${challenge}</Challenge>
-    <Identifier xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="${contextIdentifier.type === 'onip' ? 'ns2:SubjectIdentifierByCompanyType' : 'ns2:SubjectIdentifierToPersonType'}">
-      <ns2:Identifier>${contextIdentifier.identifier}</ns2:Identifier>
+    <Identifier xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="${contextIdentifier.type === 'onip' ? 'ns3:SubjectIdentifierByCompanyType' : 'ns3:SubjectIdentifierToPersonType'}">
+      <ns3:Identifier>${contextIdentifier.identifier}</ns3:Identifier>
     </Identifier>
     <DocumentType>
-      <ns2:Service>KSeF</ns2:Service>
-      <ns2:FormCode>
-        <ns2:SystemCode>FA (2)</ns2:SystemCode>
-        <ns2:SchemaVersion>1-0E</ns2:SchemaVersion>
-        <ns2:TargetNamespace>http://crd.gov.pl/wzor/2023/06/29/12648/</ns2:TargetNamespace>
-        <ns2:Value>FA</ns2:Value>
-      </ns2:FormCode>
+      <ns3:Service>KSeF</ns3:Service>
+      <ns3:FormCode>
+        <ns3:SystemCode>FA (2)</ns3:SystemCode>
+        <ns3:SchemaVersion>1-0E</ns3:SchemaVersion>
+        <ns3:TargetNamespace>http://crd.gov.pl/wzor/2023/06/29/12648/</ns3:TargetNamespace>
+        <ns3:Value>FA</ns3:Value>
+      </ns3:FormCode>
     </DocumentType>
     <Type>SerialNumber</Type>
-  </ns3:Context>
-</ns3:InitSessionSignedRequest>`;
+  </ns2:Context>
+</ns2:AuthRequest>`;
 
     res.json({
       challenge,
