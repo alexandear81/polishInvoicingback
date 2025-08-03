@@ -151,9 +151,13 @@ router.post('/request-session-token', async (req: Request, res: Response) => {
     const ksefUrl = getKsefUrl(environment);
     console.log('🎯 KSeF URL:', ksefUrl);
 
+    // Convert XML string to Buffer for proper octet-stream handling
+    const xmlBuffer = Buffer.from(signedXmlContent, 'utf-8');
+    console.log('📦 Sending XML as Buffer, length:', xmlBuffer.length);
+
     const response = await axios.post(
       `${ksefUrl}/api/online/Session/InitSigned`,
-      signedXmlContent,
+      xmlBuffer,
       {
         headers: {
           'Content-Type': 'application/octet-stream; charset=utf-8',
@@ -413,9 +417,12 @@ router.post('/init-session-signed', upload.single('signedXml'), async (req: Requ
 
     const ksefUrl = getKsefUrl(environment);
 
+    // Convert XML string to Buffer for proper octet-stream handling
+    const xmlBuffer = Buffer.from(signedXmlContent, 'utf-8');
+
     const response = await axios.post(
       `${ksefUrl}/api/online/Session/InitSigned`,
-      signedXmlContent,
+      xmlBuffer,
       {
         headers: {
           'Content-Type': 'application/octet-stream; charset=utf-8',
