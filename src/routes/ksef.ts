@@ -84,7 +84,7 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
     // Use the reusable function to get challenge and timestamp
     const { challenge, timestamp } = await getAuthorisationChallenge(contextIdentifier, environment);
 
-    // Create XML structure ready for signing (corrected based on KSeF Python client)
+    // Create XML structure ready for signing (corrected based on KSeF Java client)
     const xmlToSign = `<?xml version="1.0" encoding="UTF-8"?>
 <ns3:InitSessionSignedRequest xmlns="http://ksef.mf.gov.pl/schema/gtw/svc/online/types/2021/10/01/0001" xmlns:ns2="http://ksef.mf.gov.pl/schema/gtw/svc/types/2021/10/01/0001" xmlns:ns3="http://ksef.mf.gov.pl/schema/gtw/svc/online/auth/request/2021/10/01/0001">
   <ns3:Context>
@@ -95,9 +95,9 @@ router.post('/authorization-challenge', async (req: Request, res: Response) => {
     <DocumentType>
       <ns2:Service>KSeF</ns2:Service>
       <ns2:FormCode>
-        <ns2:SystemCode>FA (1)</ns2:SystemCode>
+        <ns2:SystemCode>FA (2)</ns2:SystemCode>
         <ns2:SchemaVersion>1-0E</ns2:SchemaVersion>
-        <ns2:TargetNamespace>http://crd.gov.pl/wzor/2021/11/29/11089/</ns2:TargetNamespace>
+        <ns2:TargetNamespace>http://crd.gov.pl/wzor/2023/06/29/12648/</ns2:TargetNamespace>
         <ns2:Value>FA</ns2:Value>
       </ns2:FormCode>
     </DocumentType>
@@ -151,13 +151,9 @@ router.post('/request-session-token', async (req: Request, res: Response) => {
     const ksefUrl = getKsefUrl(environment);
     console.log('🎯 KSeF URL:', ksefUrl);
 
-    // Convert XML string to Buffer for proper octet-stream handling
-    const xmlBuffer = Buffer.from(signedXmlContent, 'utf-8');
-    console.log('📦 Sending XML as Buffer, length:', xmlBuffer.length);
-
     const response = await axios.post(
       `${ksefUrl}/api/online/Session/InitSigned`,
-      xmlBuffer,
+      signedXmlContent,
       {
         headers: {
           'Content-Type': 'application/octet-stream; charset=utf-8',
@@ -417,12 +413,9 @@ router.post('/init-session-signed', upload.single('signedXml'), async (req: Requ
 
     const ksefUrl = getKsefUrl(environment);
 
-    // Convert XML string to Buffer for proper octet-stream handling
-    const xmlBuffer = Buffer.from(signedXmlContent, 'utf-8');
-
     const response = await axios.post(
       `${ksefUrl}/api/online/Session/InitSigned`,
-      xmlBuffer,
+      signedXmlContent,
       {
         headers: {
           'Content-Type': 'application/octet-stream; charset=utf-8',
