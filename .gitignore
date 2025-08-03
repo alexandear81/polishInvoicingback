@@ -13,3 +13,21 @@ src/references/
 
 # KSeF example implementation (private)
 ksef-python-client-main/
+
+# Test automation and debug files
+test-ksef-automation.py
+test-direct-ksef.py
+test-fresh-challenge.js
+test-signed-xml.js
+test-xml-formats.py
+debug-ksef.py
+debug_signed_xml.xml
+run-ksef-test.bat
+run-ksef-test.ps1
+test-guide.md
+
+# Any other debug or temporary files
+debug_*.xml
+*_debug.xml
+test_*.py
+test_*.js
