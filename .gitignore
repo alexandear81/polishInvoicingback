@@ -32,8 +32,39 @@ debug_*.xml
 test_*.py
 test_*.js
 
-# Recent test files for KSeF debugging
-test-unsigned-xml.py
-debug-xml-template.py
-test-rate-limit.py
-wait-and-test.py
+# Python files (investigation scripts, testing, debugging)
+*.py
+
+# XML files (signed XML, test XML, debug XML)
+*.xml
+
+# KSeF 31000 Error Investigation Files (2025-08-04)
+# DSS Application Setup
+run-dss-simple.bat
+run-dss-simple.ps1
+
+# Generated challenge and text files
+ksef_challenge.txt
+
+# Investigation Documentation and Reports
+ksef_investigation_report.json
+README_INVESTIGATION.md
+
+# Generated XML and Test Files
+signed.xml
+ksef_challenge.txt
+challenge.xml
+
+# Certificate and Key Files (if any are generated)
+*.p12
+*.pfx
+*.key
+*.crt
+*.pem
+test_certificate.*
+
+# DSS Application Files (if downloaded locally)
+dss-demo-bundle-*.jar
+javafx-sdk-*/
+
+KSEF-ANALYSIS-REPORT.md
