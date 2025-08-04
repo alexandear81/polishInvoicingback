@@ -15,14 +15,9 @@ src/references/
 ksef-python-client-main/
 
 # Test automation and debug files
-test-ksef-automation.py
-test-direct-ksef.py
 test-fresh-challenge.js
 test-signed-xml.js
-test-xml-formats.py
-debug-ksef.py
 debug_signed_xml.xml
-run-ksef-test.bat
 run-ksef-test.ps1
 test-guide.md
 
@@ -34,13 +29,14 @@ test_*.js
 
 # Python files (investigation scripts, testing, debugging)
 *.py
+# Batch files (for running tests or scripts)
+*.bat
 
 # XML files (signed XML, test XML, debug XML)
 *.xml
 
 # KSeF 31000 Error Investigation Files (2025-08-04)
 # DSS Application Setup
-run-dss-simple.bat
 run-dss-simple.ps1
 
 # Generated challenge and text files
@@ -51,9 +47,7 @@ ksef_investigation_report.json
 README_INVESTIGATION.md
 
 # Generated XML and Test Files
-signed.xml
 ksef_challenge.txt
-challenge.xml
 
 # Certificate and Key Files (if any are generated)
 *.p12
