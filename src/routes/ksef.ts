@@ -3,9 +3,39 @@ import axios from 'axios';
 import multer from 'multer';
 import zlib from 'zlib';
 import crypto from 'crypto';
+import { getKSeFUrl, isMockMode, getMockHeaders, getRealKSeFHeaders } from '../config/ksef-config.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Configuration endpoint - shows current KSeF mode
+router.get('/config', (req: Request, res: Response) => {
+  const mockMode = isMockMode();
+  const baseUrl = getKSeFUrl();
+  
+  res.json({
+    mode: mockMode ? 'mock' : 'real',
+    baseUrl,
+    environment: process.env.KSEF_ENVIRONMENT || 'test',
+    mockEnabled: mockMode,
+    version: mockMode ? 'Mock v1.0' : 'Real API v2.4.0',
+    message: mockMode 
+      ? '🎭 Using Mock KSeF API - Perfect for development!' 
+      : '🌐 Using Real KSeF API - Production ready',
+    features: mockMode ? [
+      'No certificate requirements',
+      'Instant responses',
+      'Always successful operations',
+      'Predictable test data',
+      'No rate limiting'
+    ] : [
+      'Real certificate validation',
+      'Actual KSeF integration',
+      'Real invoice processing',
+      'Production compliance'
+    ]
+  });
+});
 
 // KSeF environment URLs
 const KSEF_ENVIRONMENTS = {

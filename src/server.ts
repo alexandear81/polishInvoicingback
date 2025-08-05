@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import { ksefRoutes } from './routes/ksef.js';
+import { ksefMockRoutes } from './mock/ksef-mock-server.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -83,6 +84,12 @@ app.use((error: any, req: any, res: any, next: any) => {
 
 // Routes
 app.use('/api/ksef', ksefRoutes);
+
+// Mock KSeF API (for development when real API is not available)
+if (process.env.USE_MOCK_KSEF === 'true' || process.env.NODE_ENV === 'development') {
+  console.log('🎭 Mock KSeF API enabled');
+  app.use('/api/ksef-mock', ksefMockRoutes);
+}
 
 // Health check endpoints (Railway checks these)
 app.get('/health', (req, res) => {
