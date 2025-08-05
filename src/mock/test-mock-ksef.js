@@ -3,7 +3,7 @@
  * Demonstrates complete workflow using the mock API
  */
 
-const BASE_URL = 'http://localhost:3001';
+const BASE_URL = 'https://polishinvoicingback-1.onrender.com';
 
 async function testMockKSeFWorkflow() {
   console.log('🎭 Testing KSeF Mock Service');
