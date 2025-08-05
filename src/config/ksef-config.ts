@@ -18,13 +18,29 @@ const KSEF_ENVIRONMENTS = {
 };
 
 export const getKSeFConfig = (): KSeFConfig => {
-  // Use mock if explicitly enabled OR if in development and not explicitly disabled
-  const useMock = process.env.USE_MOCK_KSEF === 'true' || 
-                  (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_KSEF !== 'false');
+  // Default to MOCK mode unless explicitly disabled
+  // This makes mock the default behavior since real KSeF API has certificate issues
+  const useMock = process.env.USE_MOCK_KSEF !== 'false' && 
+                  process.env.USE_REAL_KSEF !== 'true';
   
   const environment = (process.env.KSEF_ENVIRONMENT as 'test' | 'demo' | 'prod') || 'test';
   
-  const baseUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+  // Use BACKEND_URL if available, otherwise detect based on environment
+  let baseUrl = process.env.BACKEND_URL;
+  if (!baseUrl) {
+    if (process.env.NODE_ENV === 'production') {
+      baseUrl = 'https://polishinvoicingback-1.onrender.com';
+    } else {
+      baseUrl = 'http://localhost:3001';
+    }
+  }
+  
+  console.log('🔧 KSeF Configuration:');
+  console.log(`   📍 Base URL: ${baseUrl}`);
+  console.log(`   🎭 Use Mock: ${useMock}`);
+  console.log(`   🌍 Environment: ${environment}`);
+  console.log(`   📊 NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`   🎯 USE_MOCK_KSEF: ${process.env.USE_MOCK_KSEF}`);
   
   return {
     useMock,

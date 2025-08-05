@@ -13,6 +13,15 @@ router.get('/config', (req: Request, res: Response) => {
   const mockMode = isMockMode();
   const baseUrl = getKSeFUrl();
   
+  // Get all relevant environment variables for debugging
+  const envVars = {
+    USE_MOCK_KSEF: process.env.USE_MOCK_KSEF,
+    USE_REAL_KSEF: process.env.USE_REAL_KSEF,
+    NODE_ENV: process.env.NODE_ENV,
+    BACKEND_URL: process.env.BACKEND_URL,
+    KSEF_ENVIRONMENT: process.env.KSEF_ENVIRONMENT
+  };
+  
   res.json({
     mode: mockMode ? 'mock' : 'real',
     baseUrl,
@@ -33,7 +42,13 @@ router.get('/config', (req: Request, res: Response) => {
       'Actual KSeF integration',
       'Real invoice processing',
       'Production compliance'
-    ]
+    ],
+    debug: {
+      envVars,
+      detectedBackendUrl: process.env.BACKEND_URL || 'auto-detected',
+      mockLogic: `USE_MOCK_KSEF !== 'false' && USE_REAL_KSEF !== 'true' = ${mockMode}`,
+      timestamp: new Date().toISOString()
+    }
   });
 });
 
