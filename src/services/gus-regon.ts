@@ -99,7 +99,6 @@ class GUSRegonService {
   async login(): Promise<string> {
     const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
-  <soap:Header />
   <soap:Body>
     <ns:Zaloguj>
       <ns:pKluczUzytkownika>${this.config.userKey}</ns:pKluczUzytkownika>
@@ -110,7 +109,7 @@ class GUSRegonService {
     try {
       const response = await axios.post(this.config.baseUrl, soapEnvelope, {
         headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
+          'Content-Type': 'multipart/related; type="application/xop+xml"',
           'SOAPAction': 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/Zaloguj'
         }
       });
@@ -142,7 +141,6 @@ class GUSRegonService {
 
     const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
-  <soap:Header />
   <soap:Body>
     <ns:Wyloguj>
       <ns:pIdentyfikatorSesji>${this.sessionId}</ns:pIdentyfikatorSesji>
@@ -153,7 +151,7 @@ class GUSRegonService {
     try {
       await axios.post(this.config.baseUrl, soapEnvelope, {
         headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
+          'Content-Type': 'multipart/related; type="application/xop+xml"',
           'SOAPAction': 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/Wyloguj',
           'sid': this.sessionId
         }
@@ -188,7 +186,6 @@ class GUSRegonService {
 
       const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
-  <soap:Header />
   <soap:Body>
     <ns:DaneSzukajPodmioty>
       <ns:pParametryWyszukiwania>
@@ -200,7 +197,7 @@ class GUSRegonService {
 
       const response = await axios.post(this.config.baseUrl, soapEnvelope, {
         headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
+          'Content-Type': 'multipart/related; type="application/xop+xml"',
           'SOAPAction': 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DaneSzukajPodmioty',
           'sid': this.sessionId
         }
@@ -232,7 +229,6 @@ class GUSRegonService {
 
       const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
-  <soap:Header />
   <soap:Body>
     <ns:DaneSzukajPodmioty>
       <ns:pParametryWyszukiwania>
@@ -244,7 +240,7 @@ class GUSRegonService {
 
       const response = await axios.post(this.config.baseUrl, soapEnvelope, {
         headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
+          'Content-Type': 'multipart/related; type="application/xop+xml"',
           'SOAPAction': 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DaneSzukajPodmioty',
           'sid': this.sessionId
         }
@@ -268,7 +264,6 @@ class GUSRegonService {
 
       const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
-  <soap:Header />
   <soap:Body>
     <ns:DanePobierzPelnyRaport>
       <ns:pRegon>${regon}</ns:pRegon>
@@ -279,7 +274,7 @@ class GUSRegonService {
 
       const response = await axios.post(this.config.baseUrl, soapEnvelope, {
         headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
+          'Content-Type': 'multipart/related; type="application/xop+xml"',
           'SOAPAction': 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DanePobierzPelnyRaport',
           'sid': this.sessionId
         }
