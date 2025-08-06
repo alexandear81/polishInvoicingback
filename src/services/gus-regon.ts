@@ -70,7 +70,7 @@ class GUSRegonService {
     // Test environment credentials (publicly available for testing)
     const testConfig = {
       userKey: userKey || 'abcde12345abcde12345', // fallback test key
-      baseUrl: 'https://wyszukiwarkaregon.stat.gov.pl/wsBIR/UslugaBIRzewnPubl.svc'
+      baseUrl: 'https://wyszukiwarkaregontest.stat.gov.pl/wsBIR/UslugaBIRzewnPubl.svc'
     };
 
     // Production environment (requires registered API key)
