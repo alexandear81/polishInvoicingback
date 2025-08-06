@@ -1,0 +1,571 @@
+{
+  "info": {
+    "name": "GUS REGON API Tests",
+    "description": "Complete test collection for Polish GUS REGON company lookup service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://polishinvoicingback-1.onrender.com",
+      "type": "string"
+    },
+    {
+      "key": "testNIP",
+      "value": "5260001246",
+      "type": "string"
+    },
+    {
+      "key": "testREGON",
+      "value": "020880482",
+      "type": "string"
+    },
+    {
+      "key": "invalidNIP",
+      "value": "1234567890",
+      "type": "string"
+    },
+    {
+      "key": "invalidREGON",
+      "value": "123456789",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Service Configuration",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response contains environment info\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('environment');",
+              "    pm.expect(jsonData).to.have.property('testMode');",
+              "    pm.expect(jsonData).to.have.property('features');",
+              "});",
+              "",
+              "pm.test(\"Features array is not empty\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.features).to.be.an('array').that.is.not.empty;",
+              "});",
+              "",
+              "console.log(\"🔧 GUS Configuration:\");",
+              "const config = pm.response.json();",
+              "console.log(\"Environment:\", config.environment);",
+              "console.log(\"API Key Configured:\", config.apiKeyConfigured);",
+              "console.log(\"Message:\", config.message);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/config",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "config"]
+        },
+        "description": "Get GUS service configuration and status"
+      }
+    },
+    {
+      "name": "2. Health Check",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Service is healthy\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.equal('healthy');",
+              "    pm.expect(jsonData.service).to.equal('GUS REGON API');",
+              "});",
+              "",
+              "console.log(\"🏥 Health Status:\", pm.response.json().status);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "health"]
+        },
+        "description": "Check GUS service health"
+      }
+    },
+    {
+      "name": "3. Validate NIP and REGON",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Validation successful\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "    pm.expect(jsonData).to.have.property('validation');",
+              "});",
+              "",
+              "pm.test(\"NIP validation is correct\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    if (jsonData.validation.nip) {",
+              "        pm.expect(jsonData.validation.nip.valid).to.be.true;",
+              "        pm.expect(jsonData.validation.nip.message).to.equal(\"Valid NIP\");",
+              "    }",
+              "});",
+              "",
+              "pm.test(\"REGON validation is correct\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    if (jsonData.validation.regon) {",
+              "        pm.expect(jsonData.validation.regon.valid).to.be.true;",
+              "        pm.expect(jsonData.validation.regon.message).to.equal(\"Valid REGON\");",
+              "    }",
+              "});",
+              "",
+              "console.log(\"✅ Validation Results:\");",
+              "const validation = pm.response.json().validation;",
+              "if (validation.nip) console.log(\"NIP:\", validation.nip.message);",
+              "if (validation.regon) console.log(\"REGON:\", validation.regon.message);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nip\": \"{{testNIP}}\",\n  \"regon\": \"{{testREGON}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/validate",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "validate"]
+        },
+        "description": "Validate NIP and REGON checksums"
+      }
+    },
+    {
+      "name": "4. Search by NIP (Basic)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Company found successfully\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "    pm.expect(jsonData).to.have.property('data');",
+              "    pm.expect(jsonData.data).to.have.property('name');",
+              "});",
+              "",
+              "pm.test(\"Company has required fields\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    const company = jsonData.data;",
+              "    pm.expect(company).to.have.property('name');",
+              "    pm.expect(company).to.have.property('city');",
+              "    pm.expect(company.name).to.not.be.empty;",
+              "});",
+              "",
+              "// Save company data for use in other tests",
+              "pm.test(\"Save company data\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    if (jsonData.success && jsonData.data) {",
+              "        pm.collectionVariables.set(\"foundCompanyName\", jsonData.data.name);",
+              "        pm.collectionVariables.set(\"foundCompanyREGON\", jsonData.data.regon);",
+              "    }",
+              "});",
+              "",
+              "console.log(\"🏢 Found Company:\");",
+              "const company = pm.response.json().data;",
+              "if (company) {",
+              "    console.log(\"Name:\", company.name);",
+              "    console.log(\"City:\", company.city);",
+              "    console.log(\"NIP:\", company.nip);",
+              "    console.log(\"REGON:\", company.regon);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/company/nip/{{testNIP}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "company", "nip", "{{testNIP}}"]
+        },
+        "description": "Search for company by NIP (basic information)"
+      }
+    },
+    {
+      "name": "5. Search by NIP (With Details)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Company found with details\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "    pm.expect(jsonData.data).to.have.property('name');",
+              "});",
+              "",
+              "console.log(\"📋 Detailed Company Info:\");",
+              "const company = pm.response.json().data;",
+              "if (company) {",
+              "    console.log(\"Name:\", company.name);",
+              "    console.log(\"Address:\", company.street, company.houseNumber);",
+              "    console.log(\"City:\", company.city, company.postalCode);",
+              "    console.log(\"Phone:\", company.phone || 'N/A');",
+              "    console.log(\"Email:\", company.email || 'N/A');",
+              "    console.log(\"Website:\", company.website || 'N/A');",
+              "    console.log(\"PKD:\", company.pkdMain || 'N/A');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/company/nip/{{testNIP}}?details=true",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "company", "nip", "{{testNIP}}"],
+          "query": [
+            {
+              "key": "details",
+              "value": "true"
+            }
+          ]
+        },
+        "description": "Search for company by NIP with detailed information"
+      }
+    },
+    {
+      "name": "6. Search by REGON",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Company found by REGON\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "    pm.expect(jsonData.searchType).to.equal('REGON');",
+              "});",
+              "",
+              "console.log(\"🔍 REGON Search Result:\");",
+              "const result = pm.response.json();",
+              "console.log(\"Search Type:\", result.searchType);",
+              "console.log(\"Company:\", result.data?.name || 'Not found');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/company/regon/{{testREGON}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "company", "regon", "{{testREGON}}"]
+        },
+        "description": "Search for company by REGON"
+      }
+    },
+    {
+      "name": "7. Universal Search (NIP)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Auto-detected as NIP\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "    pm.expect(jsonData.searchType).to.equal('NIP');",
+              "});",
+              "",
+              "console.log(\"🎯 Universal Search Result:\");",
+              "const result = pm.response.json();",
+              "console.log(\"Auto-detected Type:\", result.searchType);",
+              "console.log(\"Search Value:\", result.searchValue);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/search/{{testNIP}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "search", "{{testNIP}}"]
+        },
+        "description": "Universal search that auto-detects NIP vs REGON"
+      }
+    },
+    {
+      "name": "8. Universal Search (REGON)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Auto-detected as REGON\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "    pm.expect(jsonData.searchType).to.equal('REGON');",
+              "});",
+              "",
+              "console.log(\"🎯 Universal Search (REGON):\");",
+              "const result = pm.response.json();",
+              "console.log(\"Auto-detected Type:\", result.searchType);",
+              "console.log(\"Company:\", result.data?.name || 'Not found');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/search/{{testREGON}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "search", "{{testREGON}}"]
+        },
+        "description": "Universal search with REGON number"
+      }
+    },
+    {
+      "name": "9. Universal Search with Details",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Detailed data returned\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "    pm.expect(jsonData.data).to.have.property('name');",
+              "});",
+              "",
+              "console.log(\"📋 Universal Search with Details:\");",
+              "const company = pm.response.json().data;",
+              "if (company) {",
+              "    console.log(\"Full Address:\", ",
+              "        [company.street, company.houseNumber, company.city, company.postalCode]",
+              "        .filter(Boolean).join(', '));",
+              "    console.log(\"Contact:\", company.phone || 'N/A', company.email || 'N/A');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/search/{{testNIP}}?details=true",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "search", "{{testNIP}}"],
+          "query": [
+            {
+              "key": "details",
+              "value": "true"
+            }
+          ]
+        },
+        "description": "Universal search with detailed company information"
+      }
+    },
+    {
+      "name": "10. Invalid NIP Test",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400 for invalid NIP\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Error response format is correct\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.false;",
+              "    pm.expect(jsonData).to.have.property('error');",
+              "});",
+              "",
+              "console.log(\"❌ Invalid NIP Error:\");",
+              "const error = pm.response.json();",
+              "console.log(\"Error:\", error.error);",
+              "console.log(\"Details:\", error.details || 'N/A');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/company/nip/{{invalidNIP}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "company", "nip", "{{invalidNIP}}"]
+        },
+        "description": "Test error handling with invalid NIP"
+      }
+    },
+    {
+      "name": "11. Invalid REGON Test",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400 for invalid REGON\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Error response format is correct\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.false;",
+              "    pm.expect(jsonData).to.have.property('error');",
+              "});",
+              "",
+              "console.log(\"❌ Invalid REGON Error:\");",
+              "const error = pm.response.json();",
+              "console.log(\"Error:\", error.error);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/company/regon/{{invalidREGON}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "company", "regon", "{{invalidREGON}}"]
+        },
+        "description": "Test error handling with invalid REGON"
+      }
+    },
+    {
+      "name": "12. Company Details (by REGON)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Detailed company data returned\", function () {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "    pm.expect(jsonData).to.have.property('detailsFor');",
+              "});",
+              "",
+              "console.log(\"📊 Company Details:\");",
+              "const result = pm.response.json();",
+              "console.log(\"Details for REGON:\", result.detailsFor);",
+              "if (result.data) {",
+              "    console.log(\"Legal Form:\", result.data.legalForm || 'N/A');",
+              "    console.log(\"PKD Description:\", result.data.pkdDescription || 'N/A');",
+              "    console.log(\"Registration Date:\", result.data.registrationDate || 'N/A');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/gus/company/{{testREGON}}/details",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "gus", "company", "{{testREGON}}", "details"]
+        },
+        "description": "Get detailed company information by REGON"
+      }
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Set timestamp for all requests",
+          "pm.collectionVariables.set('timestamp', new Date().toISOString());",
+          "",
+          "console.log('🚀 Starting GUS REGON API Test');",
+          "console.log('Base URL:', pm.collectionVariables.get('baseUrl'));",
+          "console.log('Test NIP:', pm.collectionVariables.get('testNIP'));",
+          "console.log('Test REGON:', pm.collectionVariables.get('testREGON'));"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "// Log response time for all requests",
+          "console.log('⏱️ Response Time:', pm.response.responseTime + 'ms');"
+        ]
+      }
+    }
+  ]
+}

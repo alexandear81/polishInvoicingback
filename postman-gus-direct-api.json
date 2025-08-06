@@ -1,0 +1,498 @@
+{
+  "info": {
+    "name": "GUS REGON Direct API Tests",
+    "description": "Test collection for the official Polish GUS REGON API (direct SOAP calls)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "gusApiUrl",
+      "value": "https://wyszukiwarkaregon.stat.gov.pl/wsBIR/UslugaBIRzewnPubl.svc",
+      "type": "string"
+    },
+    {
+      "key": "gusTestApiUrl",
+      "value": "https://wyszukiwarkaregontest.stat.gov.pl/wsBIR/UslugaBIRzewnPubl.svc",
+      "type": "string"
+    },
+    {
+      "key": "testUserKey",
+      "value": "abcde12345abcde12345",
+      "type": "string"
+    },
+    {
+      "key": "testNIP",
+      "value": "5260001246",
+      "type": "string"
+    },
+    {
+      "key": "testREGON",
+      "value": "020880482",
+      "type": "string"
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login (Get Session)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response contains session ID\", function () {",
+              "    const responseText = pm.response.text();",
+              "    pm.expect(responseText).to.include('<ZalogujResult>');",
+              "});",
+              "",
+              "// Extract session ID from SOAP response",
+              "const responseText = pm.response.text();",
+              "const sessionMatch = responseText.match(/<ZalogujResult>(.*?)<\\/ZalogujResult>/);",
+              "",
+              "if (sessionMatch && sessionMatch[1]) {",
+              "    const sessionId = sessionMatch[1];",
+              "    pm.collectionVariables.set('sessionId', sessionId);",
+              "    console.log('🔑 Session ID obtained:', sessionId);",
+              "    ",
+              "    pm.test(\"Session ID is valid\", function () {",
+              "        pm.expect(sessionId).to.have.length.greaterThan(10);",
+              "    });",
+              "} else {",
+              "    console.log('❌ Failed to extract session ID');",
+              "    console.log('Response:', responseText);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/Zaloguj"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ns=\"http://CIS/BIR/PUBL/2014/07\">\n  <soap:Header />\n  <soap:Body>\n    <ns:Zaloguj>\n      <ns:pKluczUzytkownika>{{testUserKey}}</ns:pKluczUzytkownika>\n    </ns:Zaloguj>\n  </soap:Body>\n</soap:Envelope>"
+        },
+        "url": {
+          "raw": "{{gusTestApiUrl}}",
+          "host": ["{{gusTestApiUrl}}"]
+        },
+        "description": "Login to GUS REGON API and get session ID"
+      }
+    },
+    {
+      "name": "2. Get Service Status",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Service status response received\", function () {",
+              "    const responseText = pm.response.text();",
+              "    pm.expect(responseText).to.include('<GetValueResult>');",
+              "});",
+              "",
+              "// Extract service status",
+              "const responseText = pm.response.text();",
+              "const statusMatch = responseText.match(/<GetValueResult>(.*?)<\\/GetValueResult>/);",
+              "",
+              "if (statusMatch) {",
+              "    const status = statusMatch[1];",
+              "    console.log('🔍 Service Status:', status);",
+              "    ",
+              "    pm.test(\"Service is available\", function () {",
+              "        pm.expect(status).to.equal('1');",
+              "    });",
+              "} else {",
+              "    console.log('Response:', responseText);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/GetValue"
+          },
+          {
+            "key": "sid",
+            "value": "{{sessionId}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ns=\"http://CIS/BIR/PUBL/2014/07\">\n  <soap:Header />\n  <soap:Body>\n    <ns:GetValue>\n      <ns:pNazwaParametru>StatusUslugi</ns:pNazwaParametru>\n    </ns:GetValue>\n  </soap:Body>\n</soap:Envelope>"
+        },
+        "url": {
+          "raw": "{{gusTestApiUrl}}",
+          "host": ["{{gusTestApiUrl}}"]
+        },
+        "description": "Check GUS service status"
+      }
+    },
+    {
+      "name": "3. Search by NIP",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Search results received\", function () {",
+              "    const responseText = pm.response.text();",
+              "    pm.expect(responseText).to.include('<DaneSzukajPodmiotyResult>');",
+              "});",
+              "",
+              "// Extract and parse search results",
+              "const responseText = pm.response.text();",
+              "const resultsMatch = responseText.match(/<DaneSzukajPodmiotyResult><\\!\\[CDATA\\[(.*?)\\]\\]><\\/DaneSzukajPodmiotyResult>/s);",
+              "",
+              "if (resultsMatch && resultsMatch[1]) {",
+              "    const xmlData = resultsMatch[1];",
+              "    console.log('🔍 Search Results XML:');",
+              "    console.log(xmlData);",
+              "    ",
+              "    // Try to extract basic company info",
+              "    const nameMatch = xmlData.match(/<Nazwa>(.*?)<\\/Nazwa>/);",
+              "    const regonMatch = xmlData.match(/<Regon>(.*?)<\\/Regon>/);",
+              "    const nipMatch = xmlData.match(/<Nip>(.*?)<\\/Nip>/);",
+              "    ",
+              "    if (nameMatch) {",
+              "        console.log('🏢 Company Name:', nameMatch[1]);",
+              "        pm.collectionVariables.set('foundCompanyName', nameMatch[1]);",
+              "    }",
+              "    if (regonMatch) {",
+              "        console.log('📋 REGON:', regonMatch[1]);",
+              "        pm.collectionVariables.set('foundREGON', regonMatch[1]);",
+              "    }",
+              "    if (nipMatch) {",
+              "        console.log('💼 NIP:', nipMatch[1]);",
+              "    }",
+              "} else {",
+              "    console.log('❌ No search results found or different format');",
+              "    console.log('Full response:', responseText);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DaneSzukajPodmioty"
+          },
+          {
+            "key": "sid",
+            "value": "{{sessionId}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ns=\"http://CIS/BIR/PUBL/2014/07\">\n  <soap:Header />\n  <soap:Body>\n    <ns:DaneSzukajPodmioty>\n      <ns:pParametryWyszukiwania>\n        <ns:Nip>{{testNIP}}</ns:Nip>\n      </ns:pParametryWyszukiwania>\n    </ns:DaneSzukajPodmioty>\n  </soap:Body>\n</soap:Envelope>"
+        },
+        "url": {
+          "raw": "{{gusTestApiUrl}}",
+          "host": ["{{gusTestApiUrl}}"]
+        },
+        "description": "Search for company by NIP number"
+      }
+    },
+    {
+      "name": "4. Search by REGON",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"REGON search results received\", function () {",
+              "    const responseText = pm.response.text();",
+              "    pm.expect(responseText).to.include('<DaneSzukajPodmiotyResult>');",
+              "});",
+              "",
+              "// Parse REGON search results",
+              "const responseText = pm.response.text();",
+              "const resultsMatch = responseText.match(/<DaneSzukajPodmiotyResult><\\!\\[CDATA\\[(.*?)\\]\\]><\\/DaneSzukajPodmiotyResult>/s);",
+              "",
+              "if (resultsMatch && resultsMatch[1]) {",
+              "    const xmlData = resultsMatch[1];",
+              "    console.log('🔍 REGON Search Results:');",
+              "    console.log(xmlData);",
+              "} else {",
+              "    console.log('❌ No REGON search results');",
+              "    console.log('Response:', responseText);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DaneSzukajPodmioty"
+          },
+          {
+            "key": "sid",
+            "value": "{{sessionId}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ns=\"http://CIS/BIR/PUBL/2014/07\">\n  <soap:Header />\n  <soap:Body>\n    <ns:DaneSzukajPodmioty>\n      <ns:pParametryWyszukiwania>\n        <ns:Regon>{{testREGON}}</ns:Regon>\n      </ns:pParametryWyszukiwania>\n    </ns:DaneSzukajPodmioty>\n  </soap:Body>\n</soap:Envelope>"
+        },
+        "url": {
+          "raw": "{{gusTestApiUrl}}",
+          "host": ["{{gusTestApiUrl}}"]
+        },
+        "description": "Search for company by REGON number"
+      }
+    },
+    {
+      "name": "5. Get Company Details (DanePobierzPelnyRaport)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Company details received\", function () {",
+              "    const responseText = pm.response.text();",
+              "    pm.expect(responseText).to.include('<DanePobierzPelnyRaportResult>');",
+              "});",
+              "",
+              "// Parse detailed company data",
+              "const responseText = pm.response.text();",
+              "const resultsMatch = responseText.match(/<DanePobierzPelnyRaportResult><\\!\\[CDATA\\[(.*?)\\]\\]><\\/DanePobierzPelnyRaportResult>/s);",
+              "",
+              "if (resultsMatch && resultsMatch[1]) {",
+              "    const xmlData = resultsMatch[1];",
+              "    console.log('📊 Detailed Company Data:');",
+              "    console.log(xmlData);",
+              "    ",
+              "    // Extract key fields",
+              "    const fields = [",
+              "        'praw_nazwa', 'praw_nazwaSkrocona', 'praw_adSiedzWojewodztwo',",
+              "        'praw_adSiedzMiejscowosc', 'praw_adSiedzKodPocztowy',",
+              "        'praw_adSiedzUlica', 'praw_adSiedzNumerNieruchomosci',",
+              "        'praw_numerTelefonu', 'praw_adresEmail', 'praw_adresStronyinternetowej',",
+              "        'praw_pkd_Kod', 'praw_pkd_Nazwa'",
+              "    ];",
+              "    ",
+              "    fields.forEach(field => {",
+              "        const regex = new RegExp(`<${field}>(.*?)<\\/${field}>`);",
+              "        const match = xmlData.match(regex);",
+              "        if (match && match[1]) {",
+              "            console.log(`${field}:`, match[1]);",
+              "        }",
+              "    });",
+              "} else {",
+              "    console.log('❌ No detailed data found');",
+              "    console.log('Response:', responseText);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DanePobierzPelnyRaport"
+          },
+          {
+            "key": "sid",
+            "value": "{{sessionId}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ns=\"http://CIS/BIR/PUBL/2014/07\">\n  <soap:Header />\n  <soap:Body>\n    <ns:DanePobierzPelnyRaport>\n      <ns:pRegon>{{testREGON}}</ns:pRegon>\n      <ns:pNazwaRaportu>BIR11OsPrawna</ns:pNazwaRaportu>\n    </ns:DanePobierzPelnyRaport>\n  </soap:Body>\n</soap:Envelope>"
+        },
+        "url": {
+          "raw": "{{gusTestApiUrl}}",
+          "host": ["{{gusTestApiUrl}}"]
+        },
+        "description": "Get detailed company report by REGON"
+      }
+    },
+    {
+      "name": "6. Get Available Reports List",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "// Parse available reports",
+              "const responseText = pm.response.text();",
+              "const resultsMatch = responseText.match(/<GetValueResult><\\!\\[CDATA\\[(.*?)\\]\\]><\\/GetValueResult>/s);",
+              "",
+              "if (resultsMatch && resultsMatch[1]) {",
+              "    const xmlData = resultsMatch[1];",
+              "    console.log('📋 Available Reports:');",
+              "    console.log(xmlData);",
+              "} else {",
+              "    console.log('Response:', responseText);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/GetValue"
+          },
+          {
+            "key": "sid",
+            "value": "{{sessionId}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ns=\"http://CIS/BIR/PUBL/2014/07\">\n  <soap:Header />\n  <soap:Body>\n    <ns:GetValue>\n      <ns:pNazwaParametru>GetParamNazwaRaportu</ns:pNazwaParametru>\n    </ns:GetValue>\n  </soap:Body>\n</soap:Envelope>"
+        },
+        "url": {
+          "raw": "{{gusTestApiUrl}}",
+          "host": ["{{gusTestApiUrl}}"]
+        },
+        "description": "Get list of available report types"
+      }
+    },
+    {
+      "name": "7. Logout",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Logout successful\", function () {",
+              "    const responseText = pm.response.text();",
+              "    pm.expect(responseText).to.include('<WylogujResult>');",
+              "});",
+              "",
+              "// Check logout result",
+              "const responseText = pm.response.text();",
+              "const logoutMatch = responseText.match(/<WylogujResult>(.*?)<\\/WylogujResult>/);",
+              "",
+              "if (logoutMatch) {",
+              "    const result = logoutMatch[1];",
+              "    console.log('👋 Logout Result:', result);",
+              "    ",
+              "    if (result === 'true') {",
+              "        pm.collectionVariables.set('sessionId', '');",
+              "        console.log('✅ Successfully logged out');",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/Wyloguj"
+          },
+          {
+            "key": "sid",
+            "value": "{{sessionId}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ns=\"http://CIS/BIR/PUBL/2014/07\">\n  <soap:Header />\n  <soap:Body>\n    <ns:Wyloguj>\n      <ns:pIdentyfikatorSesji>{{sessionId}}</ns:pIdentyfikatorSesji>\n    </ns:Wyloguj>\n  </soap:Body>\n</soap:Envelope>"
+        },
+        "url": {
+          "raw": "{{gusTestApiUrl}}",
+          "host": ["{{gusTestApiUrl}}"]
+        },
+        "description": "Logout from GUS REGON API"
+      }
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Global pre-request script",
+          "console.log('🚀 Testing GUS REGON Direct API');",
+          "console.log('Using test environment:', pm.collectionVariables.get('gusTestApiUrl'));"
+        ]
+      }
+    }
+  ]
+}
