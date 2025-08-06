@@ -98,13 +98,12 @@ class GUSRegonService {
    */
   async login(): Promise<string> {
     const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
-               xmlns:xsd="http://www.w3.org/2001/XMLSchema" 
-               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
+  <soap:Header />
   <soap:Body>
-    <Zaloguj xmlns="http://CIS/BIR/PUBL/2014/07">
-      <pKluczUzytkownika>${this.config.userKey}</pKluczUzytkownika>
-    </Zaloguj>
+    <ns:Zaloguj>
+      <ns:pKluczUzytkownika>${this.config.userKey}</ns:pKluczUzytkownika>
+    </ns:Zaloguj>
   </soap:Body>
 </soap:Envelope>`;
 
@@ -142,11 +141,12 @@ class GUSRegonService {
     }
 
     const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
-               xmlns:xsd="http://www.w3.org/2001/XMLSchema" 
-               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
+  <soap:Header />
   <soap:Body>
-    <Wyloguj xmlns="http://CIS/BIR/PUBL/2014/07" />
+    <ns:Wyloguj>
+      <ns:pIdentyfikatorSesji>${this.sessionId}</ns:pIdentyfikatorSesji>
+    </ns:Wyloguj>
   </soap:Body>
 </soap:Envelope>`;
 
@@ -187,15 +187,14 @@ class GUSRegonService {
       }
 
       const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
-               xmlns:xsd="http://www.w3.org/2001/XMLSchema" 
-               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
+  <soap:Header />
   <soap:Body>
-    <DaneSzukajPodmioty xmlns="http://CIS/BIR/PUBL/2014/07">
-      <pParametryWyszukiwania>
-        <nip>${cleanNip}</nip>
-      </pParametryWyszukiwania>
-    </DaneSzukajPodmioty>
+    <ns:DaneSzukajPodmioty>
+      <ns:pParametryWyszukiwania>
+        <ns:Nip>${cleanNip}</ns:Nip>
+      </ns:pParametryWyszukiwania>
+    </ns:DaneSzukajPodmioty>
   </soap:Body>
 </soap:Envelope>`;
 
@@ -232,15 +231,14 @@ class GUSRegonService {
       }
 
       const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
-               xmlns:xsd="http://www.w3.org/2001/XMLSchema" 
-               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
+  <soap:Header />
   <soap:Body>
-    <DaneSzukajPodmioty xmlns="http://CIS/BIR/PUBL/2014/07">
-      <pParametryWyszukiwania>
-        <regon>${cleanRegon}</regon>
-      </pParametryWyszukiwania>
-    </DaneSzukajPodmioty>
+    <ns:DaneSzukajPodmioty>
+      <ns:pParametryWyszukiwania>
+        <ns:Regon>${cleanRegon}</ns:Regon>
+      </ns:pParametryWyszukiwania>
+    </ns:DaneSzukajPodmioty>
   </soap:Body>
 </soap:Envelope>`;
 
@@ -269,14 +267,13 @@ class GUSRegonService {
       }
 
       const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
-               xmlns:xsd="http://www.w3.org/2001/XMLSchema" 
-               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
+  <soap:Header />
   <soap:Body>
-    <DanePobierzPelnyRaport xmlns="http://CIS/BIR/PUBL/2014/07">
-      <pRegon>${regon}</pRegon>
-      <pNazwaRaportu>PublDaneRaportPrawna</pNazwaRaportu>
-    </DanePobierzPelnyRaport>
+    <ns:DanePobierzPelnyRaport>
+      <ns:pRegon>${regon}</ns:pRegon>
+      <ns:pNazwaRaportu>PublDaneRaportPrawna</ns:pNazwaRaportu>
+    </ns:DanePobierzPelnyRaport>
   </soap:Body>
 </soap:Envelope>`;
 
