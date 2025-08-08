@@ -1,14 +1,18 @@
-# Backend Server for KSeF Integration
+# Backend Server for KSeF Integration & GUS REGON API
 
-This backend server provides proxy endpoints for KSeF API integration, solving CORS issues and providing a secure way to communicate with the Polish tax system.
+This backend server provides proxy endpoints for KSeF API integration and GUS REGON API for Polish company data lookup, solving CORS issues and providing a secure way to communicate with Polish government systems.
 
 ## Features
 
-- **Environment Support**: Switch between test, demo, and production KSeF environments
+- **KSeF Integration**: Full KSeF API integration for invoice management
+- **GUS REGON API**: Polish company data lookup with NIP/REGON validation
+- **Environment Support**: Switch between test, demo, and production environments per request
 - **Base64 XML Handling**: Accept XML as base64 for cleaner data transfer
 - **Authorization Challenge**: Request challenge for session initialization with XML generation
 - **Session Management**: Initialize and terminate KSeF sessions
 - **Invoice Operations**: Send invoices and check their status
+- **Company Data**: Fetch detailed Polish company information
+- **Per-Request Environment Selection**: Choose test or production environment for each API call
 - **Error Handling**: Comprehensive error handling and logging
 - **Security**: CORS protection, helmet security headers, compression
 
@@ -30,12 +34,18 @@ PORT=3001
 NODE_ENV=development
 FRONTEND_URL=http://localhost:5173
 KSEF_API_URL=https://ksef-test.mf.gov.pl
+
+# Optional: GUS REGON API (for production company data)
+GUS_API_KEY=your-registered-gus-api-key
 ```
 
 For production, change to:
 ```env
 KSEF_API_URL=https://ksef.mf.gov.pl
+GUS_API_KEY=your-production-gus-api-key
 ```
+
+**Note:** The GUS REGON API works without any environment variables and supports per-request environment selection.
 
 ### 3. Development
 
@@ -144,12 +154,170 @@ const { invoiceBase64 } = await response.json();
 
 This approach is **production-ready** and follows official KSeF patterns! 🎉
 
+## 🏢 **GUS REGON API Integration**
+
+The backend provides comprehensive integration with the Polish Central Statistical Office (GUS) REGON API for company data lookup. This service allows you to:
+
+- **Validate NIP and REGON numbers** with checksum verification
+- **Search companies by NIP or REGON** with automatic format detection
+- **Fetch detailed company information** including addresses, PKD codes, and legal forms
+- **Use test or production environments** per request without deployment changes
+- **Access real company data** from official Polish government sources
+
+### 🔧 **GUS API Setup**
+
+#### Environment Variables
+```env
+# Optional - for production API access
+GUS_API_KEY=your-registered-api-key-here
+# Alternative name for the API key
+GUS_USER_KEY=your-registered-api-key-here
+```
+
+**Note:** No environment variables are required! The API works out-of-the-box with test data and provides flexible per-request environment selection.
+
+#### API Key Registration
+- **Free Registration**: Visit [GUS Registration Portal](https://wyszukiwarkaregon.stat.gov.pl/appBIR/index.aspx)
+- **Test Environment**: Works without registration using default test key
+- **Production Environment**: Requires free API key registration for real data
+
+### 🚀 **GUS API Usage Examples**
+
+#### Search Company by NIP
+```javascript
+// Test environment (default)
+const response = await fetch('/api/gus/company/nip/5261040828');
+const companyData = await response.json();
+
+// Production environment
+const response = await fetch('/api/gus/company/nip/5261040828?environment=production');
+const companyData = await response.json();
+
+// With detailed information
+const response = await fetch('/api/gus/company/nip/5261040828?details=true&environment=test');
+const detailedData = await response.json();
+```
+
+#### Search Company by REGON
+```javascript
+// 9-digit REGON
+const response = await fetch('/api/gus/company/regon/000331501?environment=test');
+
+// 14-digit REGON
+const response = await fetch('/api/gus/company/regon/12345678901234?environment=production');
+```
+
+#### Universal Search (Auto-detect NIP/REGON)
+```javascript
+// Automatically detects if it's NIP (10 digits) or REGON (9/14 digits)
+const response = await fetch('/api/gus/search/5261040828?environment=test');
+const response = await fetch('/api/gus/search/000331501?environment=production');
+```
+
+#### Validate NIP/REGON Numbers
+```javascript
+const response = await fetch('/api/gus/validate', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    nip: '526-104-08-28',
+    regon: '000331501'
+  })
+});
+
+const validation = await response.json();
+// Returns validation status with checksum verification
+```
+
+### 📊 **Sample Response Data**
+
+```json
+{
+  "success": true,
+  "searchType": "NIP",
+  "searchValue": "5261040828",
+  "environment": "test",
+  "data": {
+    "nip": "5261040828",
+    "regon": "000331501",
+    "name": "GŁÓWNY URZĄD STATYSTYCZNY",
+    "shortName": "GUS",
+    "street": "AL. NIEPODLEGŁOŚCI",
+    "houseNumber": "208",
+    "city": "WARSZAWA",
+    "postalCode": "00-925",
+    "voivodeship": "MAZOWIECKIE",
+    "county": "M. ST. WARSZAWA",
+    "commune": "MOKOTÓW",
+    "pkdMain": "84.11.Z",
+    "pkdDescription": "OGÓLNA DZIAŁALNOŚĆ ADMINISTRACJI PUBLICZNEJ",
+    "legalForm": "JEDNOSTKA ORGANIZACYJNA NIEMAJĄCA OSOBOWOŚCI PRAWNEJ",
+    "registrationDate": "2002-06-05",
+    "status": "Czynny"
+  },
+  "sessionId": "abc123...",
+  "timestamp": "2025-08-09T10:30:00Z"
+}
+```
+
+### 🎯 **Environment Selection**
+
+The GUS API supports flexible per-request environment selection:
+
+- **No parameter**: Uses test environment by default
+- **`?environment=test`**: Forces test environment
+- **`?environment=production`** or **`?environment=prod`**: Forces production environment
+
+**Example URLs:**
+```
+GET /api/gus/company/nip/5261040828                    # Test (default)
+GET /api/gus/company/nip/5261040828?environment=test   # Test (explicit)
+GET /api/gus/company/nip/5261040828?environment=prod   # Production
+```
+
+### 🔍 **Available GUS Endpoints**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/gus/config` | GET | API configuration and available features |
+| `/api/gus/company/nip/:nip` | GET | Search by NIP number |
+| `/api/gus/company/regon/:regon` | GET | Search by REGON number |
+| `/api/gus/search/:identifier` | GET | Universal search (auto-detect) |
+| `/api/gus/company/:regon/details` | GET | Detailed company information |
+| `/api/gus/validate` | POST | Validate NIP/REGON checksums |
+| `/api/gus/health` | GET | Service health check |
+
+### 💡 **Query Parameters**
+
+- **`environment`**: `test` | `production` | `prod` (optional, defaults to test)
+- **`details`**: `true` | `false` (optional, fetches detailed company info)
+
+### ✅ **Data Validation**
+
+The API includes built-in validation:
+- **NIP Checksum**: Validates 10-digit NIP numbers with proper checksum
+- **REGON Checksum**: Validates 9 or 14-digit REGON numbers with proper checksum
+- **Format Cleaning**: Automatically removes dashes and spaces from input
+- **Error Handling**: Clear error messages for invalid formats
+
+This approach is **production-ready** and follows official KSeF patterns! 🎉
+
 ## API Endpoints
 
-All endpoints support an optional `environment` parameter to specify the KSeF environment:
+### KSeF API Endpoints
+
+All KSeF endpoints support an optional `environment` parameter to specify the KSeF environment:
 - `"test"` → https://ksef-test.mf.gov.pl (default)
 - `"demo"` → https://ksef-demo.mf.gov.pl
 - `"prod"` → https://ksef.mf.gov.pl
+
+### GUS REGON API Endpoints
+
+All GUS endpoints support an optional `environment` parameter to specify the GUS environment:
+- `"test"` → GUS test environment (default, no API key required)
+- `"production"` or `"prod"` → GUS production environment (requires API key for real data)
+
+---
 
 ### POST `/api/ksef/authorization-challenge`
 Request authorization challenge from KSeF and get XML ready for signing
@@ -346,6 +514,130 @@ Terminate active session
 }
 ```
 
+---
+
+### GUS REGON API Endpoints
+
+#### GET `/api/gus/config`
+Get GUS API configuration and available features
+
+**Response:**
+```json
+{
+  "environment": "flexible (per-request)",
+  "defaultEnvironment": "test",
+  "apiKeyConfigured": true,
+  "features": [
+    "Company data by NIP",
+    "Company data by REGON", 
+    "Per-request environment selection (test/production)"
+  ],
+  "endpoints": {
+    "searchByNIP": "GET /api/gus/company/nip/:nip?environment=test|production&details=true",
+    "searchByREGON": "GET /api/gus/company/regon/:regon?environment=test|production&details=true",
+    "universalSearch": "GET /api/gus/search/:identifier?environment=test|production&details=true"
+  }
+}
+```
+
+#### GET `/api/gus/company/nip/:nip`
+Search company by NIP number
+
+**URL Parameters:** `nip` - 10-digit NIP number (dashes/spaces automatically removed)
+**Query Parameters:** 
+- `environment` - `test` | `production` | `prod` (optional, defaults to test)
+- `details` - `true` | `false` (optional, fetches detailed information)
+
+**Example:** `GET /api/gus/company/nip/5261040828?environment=production&details=true`
+
+**Response:**
+```json
+{
+  "success": true,
+  "searchType": "NIP",
+  "searchValue": "5261040828",
+  "environment": "production",
+  "data": {
+    "nip": "5261040828",
+    "regon": "000331501", 
+    "name": "GŁÓWNY URZĄD STATYSTYCZNY",
+    "city": "WARSZAWA",
+    "postalCode": "00-925",
+    "pkdMain": "84.11.Z"
+  }
+}
+```
+
+#### GET `/api/gus/company/regon/:regon`
+Search company by REGON number
+
+**URL Parameters:** `regon` - 9 or 14-digit REGON number
+**Query Parameters:** Same as NIP search
+
+**Example:** `GET /api/gus/company/regon/000331501?environment=test`
+
+#### GET `/api/gus/search/:identifier`
+Universal search - automatically detects NIP (10 digits) or REGON (9/14 digits)
+
+**URL Parameters:** `identifier` - NIP or REGON number
+**Query Parameters:** Same as above
+
+**Example:** `GET /api/gus/search/526-104-08-28?details=true&environment=prod`
+
+#### GET `/api/gus/company/:regon/details`
+Get detailed company information by REGON
+
+**URL Parameters:** `regon` - REGON number
+**Query Parameters:** `environment` - Optional environment selection
+
+**Example:** `GET /api/gus/company/000331501/details?environment=production`
+
+#### POST `/api/gus/validate`
+Validate NIP and REGON numbers with checksum verification
+
+**Body:**
+```json
+{
+  "nip": "526-104-08-28",
+  "regon": "000331501"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "validation": {
+    "nip": {
+      "value": "526-104-08-28",
+      "valid": true,
+      "cleaned": "5261040828",
+      "message": "Valid NIP"
+    },
+    "regon": {
+      "value": "000331501", 
+      "valid": true,
+      "cleaned": "000331501",
+      "message": "Valid REGON"
+    }
+  }
+}
+```
+
+#### GET `/api/gus/health`
+GUS service health check
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "GUS REGON API",
+  "environment": "flexible (per-request)",
+  "defaultEnvironment": "test",
+  "timestamp": "2025-08-09T10:30:00Z"
+}
+```
+
 ## Development Workflow
 
 1. Start backend: `npm run dev` (runs on port 3001)
@@ -452,13 +744,19 @@ const response = await fetch('/api/ksef/authorization-challenge', {
 
 The backend is deployed at: **https://polishinvoicingback-1.onrender.com**
 
+**Available APIs:**
+- **KSeF Integration**: `/api/ksef/*` - Polish tax system invoice management
+- **GUS REGON API**: `/api/gus/*` - Polish company data lookup
+
 For other hosting platforms:
 
 1. Set environment variables in your hosting platform
 2. Update `FRONTEND_URL` to your production frontend URL
 3. Choose appropriate `KSEF_API_URL` or use environment parameter
-4. Ensure CORS is properly configured for your domain
+4. Optionally set `GUS_API_KEY` for production company data access
+5. Ensure CORS is properly configured for your domain
 
 ## Health Check
 
 **GET** `/health` - Returns server status and timestamp
+**GET** `/api/gus/health` - Returns GUS REGON API status

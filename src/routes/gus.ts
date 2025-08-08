@@ -10,20 +10,17 @@ const router = express.Router();
 
 // Configuration endpoint
 router.get('/config', (req: Request, res: Response) => {
-  const useTest = process.env.GUS_USE_TEST !== 'false';
   const hasApiKey = !!(process.env.GUS_API_KEY || process.env.GUS_USER_KEY);
   
   res.json({
-    environment: useTest ? 'test' : 'production',
-    testMode: useTest,
+    environment: 'flexible (per-request)',
+    defaultEnvironment: 'test',
     apiKeyConfigured: hasApiKey,
     apiKeySource: process.env.GUS_API_KEY ? 'GUS_API_KEY' : 
                   process.env.GUS_USER_KEY ? 'GUS_USER_KEY' : 'default_test_key',
-    message: useTest 
-      ? '🧪 Using GUS test environment - Default test key available' 
-      : hasApiKey 
-        ? '🏢 Using GUS production environment - API key configured'
-        : '⚠️ Production mode but no API key configured - will use test key',
+    message: hasApiKey 
+      ? '🏢 API key configured - can use both test and production environments per request'
+      : '🧪 Using default test key - can still use both environments per request',
     features: [
       'Company data by NIP',
       'Company data by REGON',
@@ -31,24 +28,34 @@ router.get('/config', (req: Request, res: Response) => {
       'Address information',
       'PKD codes and activities',
       'Legal form and status',
-      'Registration dates'
+      'Registration dates',
+      'Per-request environment selection (test/production)'
     ],
     endpoints: {
-      searchByNIP: 'GET /api/gus/company/nip/:nip',
-      searchByREGON: 'GET /api/gus/company/regon/:regon',
-      getDetails: 'GET /api/gus/company/:regon/details',
+      searchByNIP: 'GET /api/gus/company/nip/:nip?environment=test|production&details=true',
+      searchByREGON: 'GET /api/gus/company/regon/:regon?environment=test|production&details=true',
+      getDetails: 'GET /api/gus/company/:regon/details?environment=test|production',
+      universalSearch: 'GET /api/gus/search/:identifier?environment=test|production&details=true',
       validate: 'POST /api/gus/validate',
       config: 'GET /api/gus/config'
     },
     setup: {
       environmentVariables: {
         'GUS_API_KEY': 'Your registered GUS API key (preferred)',
-        'GUS_USER_KEY': 'Alternative name for GUS API key',
-        'GUS_USE_TEST': 'Set to "false" to use production environment (default: true)'
+        'GUS_USER_KEY': 'Alternative name for GUS API key'
+      },
+      queryParameters: {
+        'environment': 'Override environment per request: "test" or "production" (optional, defaults to test)',
+        'details': 'Fetch detailed company information: "true" or "false" (optional)'
       },
       registration: {
         url: 'https://wyszukiwarkaregon.stat.gov.pl/appBIR/index.aspx',
         note: 'Register for free production API key at GUS website'
+      },
+      usage: {
+        testEnvironment: 'Use ?environment=test to force test environment (default)',
+        productionEnvironment: 'Use ?environment=production to force production environment',
+        defaultBehavior: 'Without environment parameter, uses test environment by default'
       }
     }
   });
@@ -58,9 +65,17 @@ router.get('/config', (req: Request, res: Response) => {
 router.get('/company/nip/:nip', async (req: Request, res: Response) => {
   try {
     const { nip } = req.params;
-    const { details = false } = req.query;
+    const { details = false, environment } = req.query;
 
-    console.log(`🔍 Searching company by NIP: ${nip}`);
+    // Parse environment parameter - default to test environment
+    let useTestEnvironment: boolean | undefined = undefined;
+    if (environment === 'test') {
+      useTestEnvironment = true;
+    } else if (environment === 'production' || environment === 'prod') {
+      useTestEnvironment = false;
+    }
+
+    console.log(`🔍 Searching company by NIP: ${nip} (environment: ${environment || 'default'})`);
 
     // Validate NIP format first
     if (!validateNIP(nip)) {
@@ -72,7 +87,7 @@ router.get('/company/nip/:nip', async (req: Request, res: Response) => {
     }
 
     // Search for company
-    const result: GUSResponse = await gusRegonService.searchByNIP(nip);
+    const result: GUSResponse = await gusRegonService.searchByNIP(nip, useTestEnvironment);
 
     if (!result.success) {
       return res.status(404).json(result);
@@ -81,7 +96,7 @@ router.get('/company/nip/:nip', async (req: Request, res: Response) => {
     // If detailed information is requested and we have REGON, fetch details
     if (details === 'true' && result.data?.regon) {
       console.log(`📋 Fetching detailed information for REGON: ${result.data.regon}`);
-      const detailResult = await gusRegonService.getCompanyDetails(result.data.regon);
+      const detailResult = await gusRegonService.getCompanyDetails(result.data.regon, useTestEnvironment);
       
       if (detailResult.success && detailResult.data) {
         result.data = { ...result.data, ...detailResult.data };
@@ -108,9 +123,17 @@ router.get('/company/nip/:nip', async (req: Request, res: Response) => {
 router.get('/company/regon/:regon', async (req: Request, res: Response) => {
   try {
     const { regon } = req.params;
-    const { details = false } = req.query;
+    const { details = false, environment } = req.query;
 
-    console.log(`🔍 Searching company by REGON: ${regon}`);
+    // Parse environment parameter - default to test environment
+    let useTestEnvironment: boolean | undefined = undefined;
+    if (environment === 'test') {
+      useTestEnvironment = true;
+    } else if (environment === 'production' || environment === 'prod') {
+      useTestEnvironment = false;
+    }
+
+    console.log(`🔍 Searching company by REGON: ${regon} (environment: ${environment || 'default'})`);
 
     // Validate REGON format first
     if (!validateREGON(regon)) {
@@ -122,7 +145,7 @@ router.get('/company/regon/:regon', async (req: Request, res: Response) => {
     }
 
     // Search for company
-    const result: GUSResponse = await gusRegonService.searchByREGON(regon);
+    const result: GUSResponse = await gusRegonService.searchByREGON(regon, useTestEnvironment);
 
     if (!result.success) {
       return res.status(404).json(result);
@@ -131,7 +154,7 @@ router.get('/company/regon/:regon', async (req: Request, res: Response) => {
     // If detailed information is requested, fetch details
     if (details === 'true' && result.data?.regon) {
       console.log(`📋 Fetching detailed information for REGON: ${result.data.regon}`);
-      const detailResult = await gusRegonService.getCompanyDetails(result.data.regon);
+      const detailResult = await gusRegonService.getCompanyDetails(result.data.regon, useTestEnvironment);
       
       if (detailResult.success && detailResult.data) {
         result.data = { ...result.data, ...detailResult.data };
@@ -158,10 +181,19 @@ router.get('/company/regon/:regon', async (req: Request, res: Response) => {
 router.get('/company/:regon/details', async (req: Request, res: Response) => {
   try {
     const { regon } = req.params;
+    const { environment } = req.query;
 
-    console.log(`📋 Fetching detailed company data for REGON: ${regon}`);
+    // Parse environment parameter - default to test environment
+    let useTestEnvironment: boolean | undefined = undefined;
+    if (environment === 'test') {
+      useTestEnvironment = true;
+    } else if (environment === 'production' || environment === 'prod') {
+      useTestEnvironment = false;
+    }
 
-    const result: GUSResponse = await gusRegonService.getCompanyDetails(regon);
+    console.log(`📋 Fetching detailed company data for REGON: ${regon} (environment: ${environment || 'default'})`);
+
+    const result: GUSResponse = await gusRegonService.getCompanyDetails(regon, useTestEnvironment);
 
     if (!result.success) {
       return res.status(404).json(result);
@@ -235,11 +267,19 @@ router.post('/validate', (req: Request, res: Response) => {
 router.get('/search/:identifier', async (req: Request, res: Response) => {
   try {
     const { identifier } = req.params;
-    const { details = false } = req.query;
+    const { details = false, environment } = req.query;
+
+    // Parse environment parameter - default to test environment
+    let useTestEnvironment: boolean | undefined = undefined;
+    if (environment === 'test') {
+      useTestEnvironment = true;
+    } else if (environment === 'production' || environment === 'prod') {
+      useTestEnvironment = false;
+    }
 
     const cleanId = identifier.replace(/[-\s]/g, '');
     
-    console.log(`🔍 Universal search for: ${identifier} (cleaned: ${cleanId})`);
+    console.log(`🔍 Universal search for: ${identifier} (cleaned: ${cleanId}) (environment: ${environment || 'default'})`);
 
     let result: GUSResponse;
     let searchType: string;
@@ -255,7 +295,7 @@ router.get('/search/:identifier', async (req: Request, res: Response) => {
           searchValue: identifier
         });
       }
-      result = await gusRegonService.searchByNIP(cleanId);
+      result = await gusRegonService.searchByNIP(cleanId, useTestEnvironment);
     } else if (/^\d{9}$|^\d{14}$/.test(cleanId)) {
       searchType = 'REGON';
       if (!validateREGON(cleanId)) {
@@ -266,7 +306,7 @@ router.get('/search/:identifier', async (req: Request, res: Response) => {
           searchValue: identifier
         });
       }
-      result = await gusRegonService.searchByREGON(cleanId);
+      result = await gusRegonService.searchByREGON(cleanId, useTestEnvironment);
     } else {
       return res.status(400).json({
         success: false,
@@ -286,7 +326,7 @@ router.get('/search/:identifier', async (req: Request, res: Response) => {
     // Fetch details if requested
     if (details === 'true' && result.data?.regon) {
       console.log(`📋 Fetching detailed information for REGON: ${result.data.regon}`);
-      const detailResult = await gusRegonService.getCompanyDetails(result.data.regon);
+      const detailResult = await gusRegonService.getCompanyDetails(result.data.regon, useTestEnvironment);
       
       if (detailResult.success && detailResult.data) {
         result.data = { ...result.data, ...detailResult.data };
@@ -315,7 +355,8 @@ router.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'healthy',
     service: 'GUS REGON API',
-    environment: process.env.GUS_USE_TEST !== 'false' ? 'test' : 'production',
+    environment: 'flexible (per-request)',
+    defaultEnvironment: 'test',
     timestamp: new Date().toISOString(),
     version: '1.0.0'
   });

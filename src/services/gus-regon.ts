@@ -45,6 +45,7 @@ export interface GUSResponse {
   data?: CompanyData;
   error?: string;
   sessionId?: string;
+  environment?: 'test' | 'production';
 }
 
 class GUSRegonService {
@@ -138,16 +139,17 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
     this.config = this.getConfig();
   }
 
-  private getConfig(): GUSConfig {
-    const useTestEnvironment = process.env.GUS_USE_TEST !== 'false';
+  private getConfig(useTestEnvironment?: boolean): GUSConfig {
+    // Use parameter if provided, otherwise default to test environment
+    const useTest = useTestEnvironment !== undefined ? useTestEnvironment : true;
     
     // Get API key from environment variables
     const userKey = process.env.GUS_API_KEY || process.env.GUS_USER_KEY;
     
-    if (!userKey) {
-      console.warn('⚠️ No GUS API key provided in environment variables!');
+    if (!userKey && !useTest) {
+      console.warn('⚠️ No GUS API key provided for production environment!');
       console.warn('💡 Set GUS_API_KEY in your environment for production use');
-      console.warn('🧪 Using default test key for development');
+      console.warn('🔄 Falling back to test environment');
     }
     
     // Test environment credentials (publicly available for testing)
@@ -163,13 +165,13 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
     };
 
     const config = {
-      useTestEnvironment,
-      userKey: useTestEnvironment ? testConfig.userKey : prodConfig.userKey,
-      baseUrl: useTestEnvironment ? testConfig.baseUrl : prodConfig.baseUrl
+      useTestEnvironment: useTest,
+      userKey: useTest ? testConfig.userKey : prodConfig.userKey,
+      baseUrl: useTest ? testConfig.baseUrl : prodConfig.baseUrl
     };
     
     console.log('🔧 GUS REGON Configuration:');
-    console.log(`   🌍 Environment: ${useTestEnvironment ? 'TEST' : 'PRODUCTION'}`);
+    console.log(`   🌍 Environment: ${useTest ? 'TEST' : 'PRODUCTION'}`);
     console.log(`   🔑 API Key: ${config.userKey ? config.userKey.substring(0, 8) + '...' : 'NOT SET'}`);
     console.log(`   📡 Base URL: ${config.baseUrl}`);
     
@@ -179,7 +181,13 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
   /**
    * Login to GUS API and get session ID
    */
-  async login(): Promise<string> {
+  async login(useTestEnvironment?: boolean): Promise<string> {
+    // Reconfigure for this specific request if environment specified
+    if (useTestEnvironment !== undefined) {
+      this.config = this.getConfig(useTestEnvironment);
+      this.sessionId = null; // Reset session when changing environment
+    }
+
     const curAction = this.actions.login;
     const soapEnvelope = this.xmlTemplates.login(this.config.baseUrl, curAction, this.config.userKey);
 
@@ -212,7 +220,7 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
         throw new Error('Failed to get valid session ID from GUS');
       }
 
-      console.log(`🔐 GUS Session established: ${this.sessionId.substring(0, 8)}...`);
+      console.log(`🔐 GUS Session established: ${this.sessionId.substring(0, 8)}... (${this.config.useTestEnvironment ? 'TEST' : 'PROD'})`);
       return this.sessionId;
     } catch (error: any) {
       console.error('❌ GUS Login failed:', error.message);
@@ -253,7 +261,7 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
   /**
    * Search for company by NIP
    */
-  async searchByNIP(nip: string): Promise<GUSResponse> {
+  async searchByNIP(nip: string, useTestEnvironment?: boolean): Promise<GUSResponse> {
     try {
       // Clean NIP (remove dashes and spaces)
       const cleanNip = nip.replace(/[-\s]/g, '');
@@ -263,8 +271,8 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
       }
 
       // Ensure we have a session
-      if (!this.sessionId) {
-        await this.login();
+      if (!this.sessionId || useTestEnvironment !== undefined) {
+        await this.login(useTestEnvironment);
       }
 
       const soapEnvelope = this.xmlTemplates.searchByNIP(this.config.baseUrl, curAction, cleanNip);
@@ -277,7 +285,9 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
         }
       });
 
-      return await this.parseCompanyResponse(response, 'NIP', cleanNip);
+      const result = await this.parseCompanyResponse(response, 'NIP', cleanNip);
+      result.environment = this.config.useTestEnvironment ? 'test' : 'production';
+      return result;
     } catch (error: any) {
       console.error('❌ GUS NIP search failed:', error.message);
       return { success: false, error: `Failed to search by NIP: ${error.message}` };
@@ -287,7 +297,7 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
   /**
    * Search for company by REGON
    */
-  async searchByREGON(regon: string): Promise<GUSResponse> {
+  async searchByREGON(regon: string, useTestEnvironment?: boolean): Promise<GUSResponse> {
     try {
       // Clean REGON (remove dashes and spaces)
       const cleanRegon = regon.replace(/[-\s]/g, '');
@@ -298,8 +308,8 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
       }
 
       // Ensure we have a session
-      if (!this.sessionId) {
-        await this.login();
+      if (!this.sessionId || useTestEnvironment !== undefined) {
+        await this.login(useTestEnvironment);
       }
 
       const soapEnvelope = this.xmlTemplates.searchByREGON(this.config.baseUrl, curAction, cleanRegon);
@@ -312,7 +322,9 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
         }
       });
 
-      return await this.parseCompanyResponse(response, 'REGON', cleanRegon);
+      const result = await this.parseCompanyResponse(response, 'REGON', cleanRegon);
+      result.environment = this.config.useTestEnvironment ? 'test' : 'production';
+      return result;
     } catch (error: any) {
       console.error('❌ GUS REGON search failed:', error.message);
       return { success: false, error: `Failed to search by REGON: ${error.message}` };
@@ -322,12 +334,12 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
   /**
    * Get detailed company data by REGON
    */
-  async getCompanyDetails(regon: string): Promise<GUSResponse> {
+  async getCompanyDetails(regon: string, useTestEnvironment?: boolean): Promise<GUSResponse> {
     try {
       const curAction = this.actions.getFullReport;
       
-      if (!this.sessionId) {
-        await this.login();
+      if (!this.sessionId || useTestEnvironment !== undefined) {
+        await this.login(useTestEnvironment);
       }
 
       const soapEnvelope = this.xmlTemplates.getFullReport(this.config.baseUrl, curAction, regon);
@@ -340,7 +352,9 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
         }
       });
 
-      return await this.parseDetailedResponse(response);
+      const result = await this.parseDetailedResponse(response);
+      result.environment = this.config.useTestEnvironment ? 'test' : 'production';
+      return result;
     } catch (error: any) {
       console.error('❌ GUS Details fetch failed:', error.message);
       return { success: false, error: `Failed to get company details: ${error.message}` };
