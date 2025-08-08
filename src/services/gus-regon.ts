@@ -154,7 +154,7 @@ xmlns:ns="http://CIS/BIR/PUBL/2014/07">
     
     // Test environment credentials (publicly available for testing)
     const testConfig = {
-      userKey: userKey || 'abcde12345abcde12345', // fallback test key
+      userKey: 'abcde12345abcde12345', // fallback test key
       baseUrl: 'https://wyszukiwarkaregontest.stat.gov.pl/wsBIR/UslugaBIRzewnPubl.svc'
     };
 
