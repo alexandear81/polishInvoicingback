@@ -50,6 +50,89 @@ export interface GUSResponse {
 class GUSRegonService {
   private config: GUSConfig;
   private sessionId: string | null = null;
+  private actions: Record<string, string> = {
+    login: 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/Zaloguj',
+    logout: 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/Wyloguj',
+    search: 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DaneSzukajPodmioty',
+    getFullReport: 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DanePobierzPelnyRaport'
+  };
+
+  private xmlTemplates = {
+    login: (baseUrl: string, action: string, userKey: string) => `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+xmlns:ns="http://CIS/BIR/PUBL/2014/07">
+<soap:Header xmlns:wsa="http://www.w3.org/2005/08/addressing">
+<wsa:To>${baseUrl}</wsa:To>
+<wsa:Action>${action}</wsa:Action>
+</soap:Header>
+<soap:Body>
+<ns:Zaloguj>
+<ns:pKluczUzytkownika>${userKey}</ns:pKluczUzytkownika>
+</ns:Zaloguj>
+</soap:Body>
+</soap:Envelope>`,
+
+    logout: (baseUrl: string, action: string, sessionId: string) => `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+xmlns:ns="http://CIS/BIR/PUBL/2014/07">
+<soap:Header xmlns:wsa="http://www.w3.org/2005/08/addressing">
+<wsa:To>${baseUrl}</wsa:To>
+<wsa:Action>${action}</wsa:Action>
+</soap:Header>
+<soap:Body>
+<ns:Wyloguj>
+<ns:pIdentyfikatorSesji>${sessionId}</ns:pIdentyfikatorSesji>
+</ns:Wyloguj>
+</soap:Body>
+</soap:Envelope>`,
+
+    searchByNIP: (baseUrl: string, action: string, nip: string) => `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+xmlns:ns="http://CIS/BIR/PUBL/2014/07" xmlns:dat="http://CIS/BIR/PUBL/2014/07/DataContract">
+<soap:Header xmlns:wsa="http://www.w3.org/2005/08/addressing">
+<wsa:To>${baseUrl}</wsa:To>
+<wsa:Action>${action}</wsa:Action>
+</soap:Header>
+<soap:Body>
+<ns:DaneSzukajPodmioty>
+<ns:pParametryWyszukiwania>
+<dat:Nip>${nip}</dat:Nip>
+</ns:pParametryWyszukiwania>
+</ns:DaneSzukajPodmioty>
+</soap:Body>
+</soap:Envelope>`,
+
+    searchByREGON: (baseUrl: string, action: string, regon: string) => `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+xmlns:ns="http://CIS/BIR/PUBL/2014/07" xmlns:dat="http://CIS/BIR/PUBL/2014/07/DataContract">
+<soap:Header xmlns:wsa="http://www.w3.org/2005/08/addressing">
+<wsa:To>${baseUrl}</wsa:To>
+<wsa:Action>${action}</wsa:Action>
+</soap:Header>
+<soap:Body>
+<ns:DaneSzukajPodmioty>
+<ns:pParametryWyszukiwania>
+<dat:Regon>${regon}</dat:Regon>
+</ns:pParametryWyszukiwania>
+</ns:DaneSzukajPodmioty>
+</soap:Body>
+</soap:Envelope>`,
+
+    getFullReport: (baseUrl: string, action: string, regon: string, reportName: string = 'BIR11OsPrawna') => `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+xmlns:ns="http://CIS/BIR/PUBL/2014/07">
+<soap:Header xmlns:wsa="http://www.w3.org/2005/08/addressing">
+<wsa:To>${baseUrl}</wsa:To>
+<wsa:Action>${action}</wsa:Action>
+</soap:Header>
+<soap:Body>
+<ns:DanePobierzPelnyRaport>
+<ns:pRegon>${regon}</ns:pRegon>
+<ns:pNazwaRaportu>${reportName}</ns:pNazwaRaportu>
+</ns:DanePobierzPelnyRaport>
+</soap:Body>
+</soap:Envelope>`
+  };
 
   constructor() {
     this.config = this.getConfig();
@@ -97,27 +180,33 @@ class GUSRegonService {
    * Login to GUS API and get session ID
    */
   async login(): Promise<string> {
-    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
-  <soap:Body>
-    <ns:Zaloguj>
-      <ns:pKluczUzytkownika>${this.config.userKey}</ns:pKluczUzytkownika>
-    </ns:Zaloguj>
-  </soap:Body>
-</soap:Envelope>`;
+    const curAction = this.actions.login;
+    const soapEnvelope = this.xmlTemplates.login(this.config.baseUrl, curAction, this.config.userKey);
 
     try {
       const response = await axios.post(this.config.baseUrl, soapEnvelope, {
         headers: {
-          'Content-Type': 'multipart/related; type="application/xop+xml"',
-          'SOAPAction': 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/Zaloguj'
+          'Content-Type': 'application/soap+xml; charset=UTF-8;',
+          'SOAPAction': curAction
         }
       });
 
       const parser = new xml2js.Parser({ explicitArray: false });
-      const result = await parser.parseStringPromise(response.data);
       
-      this.sessionId = result['soap:Envelope']['soap:Body']['ZalogujResponse']['ZalogujResult'];
+      // Handle multipart response - extract XML from multipart content
+      let xmlContent = response.data;
+      if (typeof xmlContent === 'string' && xmlContent.includes('Content-Type: application/xop+xml')) {
+        // Extract XML from multipart response
+        const xmlStart = xmlContent.indexOf('<s:Envelope');
+        const xmlEnd = xmlContent.lastIndexOf('</s:Envelope>') + '</s:Envelope>'.length;
+        if (xmlStart !== -1 && xmlEnd !== -1) {
+          xmlContent = xmlContent.substring(xmlStart, xmlEnd);
+        }
+      }
+      
+      const result = await parser.parseStringPromise(xmlContent);
+      
+      this.sessionId = result['s:Envelope']['s:Body']['ZalogujResponse']['ZalogujResult'];
       
       if (!this.sessionId || this.sessionId.length < 10) {
         throw new Error('Failed to get valid session ID from GUS');
@@ -139,20 +228,14 @@ class GUSRegonService {
       return true;
     }
 
-    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
-  <soap:Body>
-    <ns:Wyloguj>
-      <ns:pIdentyfikatorSesji>${this.sessionId}</ns:pIdentyfikatorSesji>
-    </ns:Wyloguj>
-  </soap:Body>
-</soap:Envelope>`;
+    const curAction = this.actions.logout;
+    const soapEnvelope = this.xmlTemplates.logout(this.config.baseUrl, curAction, this.sessionId);
 
     try {
       await axios.post(this.config.baseUrl, soapEnvelope, {
         headers: {
-          'Content-Type': 'multipart/related; type="application/xop+xml"',
-          'SOAPAction': 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/Wyloguj',
+          'Content-Type': `application/soap+xml; charset=UTF-8; action="${curAction}"`,
+          'SOAPAction': curAction,
           'sid': this.sessionId
         }
       });
@@ -174,7 +257,7 @@ class GUSRegonService {
     try {
       // Clean NIP (remove dashes and spaces)
       const cleanNip = nip.replace(/[-\s]/g, '');
-      
+      const curAction = this.actions.search;
       if (!/^\d{10}$/.test(cleanNip)) {
         return { success: false, error: 'Invalid NIP format. Expected 10 digits.' };
       }
@@ -184,21 +267,12 @@ class GUSRegonService {
         await this.login();
       }
 
-      const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
-  <soap:Body>
-    <ns:DaneSzukajPodmioty>
-      <ns:pParametryWyszukiwania>
-        <ns:Nip>${cleanNip}</ns:Nip>
-      </ns:pParametryWyszukiwania>
-    </ns:DaneSzukajPodmioty>
-  </soap:Body>
-</soap:Envelope>`;
+      const soapEnvelope = this.xmlTemplates.searchByNIP(this.config.baseUrl, curAction, cleanNip);
 
       const response = await axios.post(this.config.baseUrl, soapEnvelope, {
         headers: {
-          'Content-Type': 'multipart/related; type="application/xop+xml"',
-          'SOAPAction': 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DaneSzukajPodmioty',
+          'Content-Type': `application/soap+xml; charset=UTF-8; action="${curAction}"`,
+          'SOAPAction': curAction,
           'sid': this.sessionId
         }
       });
@@ -217,6 +291,7 @@ class GUSRegonService {
     try {
       // Clean REGON (remove dashes and spaces)
       const cleanRegon = regon.replace(/[-\s]/g, '');
+      const curAction = this.actions.search;
       
       if (!/^\d{9}$|^\d{14}$/.test(cleanRegon)) {
         return { success: false, error: 'Invalid REGON format. Expected 9 or 14 digits.' };
@@ -227,21 +302,12 @@ class GUSRegonService {
         await this.login();
       }
 
-      const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
-  <soap:Body>
-    <ns:DaneSzukajPodmioty>
-      <ns:pParametryWyszukiwania>
-        <ns:Regon>${cleanRegon}</ns:Regon>
-      </ns:pParametryWyszukiwania>
-    </ns:DaneSzukajPodmioty>
-  </soap:Body>
-</soap:Envelope>`;
+      const soapEnvelope = this.xmlTemplates.searchByREGON(this.config.baseUrl, curAction, cleanRegon);
 
       const response = await axios.post(this.config.baseUrl, soapEnvelope, {
         headers: {
-          'Content-Type': 'multipart/related; type="application/xop+xml"',
-          'SOAPAction': 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DaneSzukajPodmioty',
+          'Content-Type': `application/soap+xml; charset=UTF-8; action="${curAction}"`,
+          'SOAPAction': curAction,
           'sid': this.sessionId
         }
       });
@@ -258,24 +324,18 @@ class GUSRegonService {
    */
   async getCompanyDetails(regon: string): Promise<GUSResponse> {
     try {
+      const curAction = this.actions.getFullReport;
+      
       if (!this.sessionId) {
         await this.login();
       }
 
-      const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://CIS/BIR/PUBL/2014/07">
-  <soap:Body>
-    <ns:DanePobierzPelnyRaport>
-      <ns:pRegon>${regon}</ns:pRegon>
-      <ns:pNazwaRaportu>PublDaneRaportPrawna</ns:pNazwaRaportu>
-    </ns:DanePobierzPelnyRaport>
-  </soap:Body>
-</soap:Envelope>`;
+      const soapEnvelope = this.xmlTemplates.getFullReport(this.config.baseUrl, curAction, regon);
 
       const response = await axios.post(this.config.baseUrl, soapEnvelope, {
         headers: {
-          'Content-Type': 'multipart/related; type="application/xop+xml"',
-          'SOAPAction': 'http://CIS/BIR/PUBL/2014/07/IUslugaBIRzewnPubl/DanePobierzPelnyRaport',
+          'Content-Type': `application/soap+xml; charset=UTF-8; action="${curAction}"`,
+          'SOAPAction': curAction,
           'sid': this.sessionId
         }
       });
@@ -293,9 +353,21 @@ class GUSRegonService {
   private async parseCompanyResponse(response: AxiosResponse, searchType: string, searchValue: string): Promise<GUSResponse> {
     try {
       const parser = new xml2js.Parser({ explicitArray: false });
-      const result = await parser.parseStringPromise(response.data);
       
-      const searchResult = result['soap:Envelope']['soap:Body']['DaneSzukajPodmiotyResponse']['DaneSzukajPodmiotyResult'];
+      // Handle multipart response - extract XML from multipart content
+      let xmlContent = response.data;
+      if (typeof xmlContent === 'string' && xmlContent.includes('Content-Type: application/xop+xml')) {
+        // Extract XML from multipart response
+        const xmlStart = xmlContent.indexOf('<s:Envelope');
+        const xmlEnd = xmlContent.lastIndexOf('</s:Envelope>') + '</s:Envelope>'.length;
+        if (xmlStart !== -1 && xmlEnd !== -1) {
+          xmlContent = xmlContent.substring(xmlStart, xmlEnd);
+        }
+      }
+      
+      const result = await parser.parseStringPromise(xmlContent);
+      
+      const searchResult = result['s:Envelope']['s:Body']['DaneSzukajPodmiotyResponse']['DaneSzukajPodmiotyResult'];
       
       if (!searchResult || searchResult.trim() === '') {
         return { success: false, error: `No company found for ${searchType}: ${searchValue}` };
@@ -349,9 +421,21 @@ class GUSRegonService {
   private async parseDetailedResponse(response: AxiosResponse): Promise<GUSResponse> {
     try {
       const parser = new xml2js.Parser({ explicitArray: false });
-      const result = await parser.parseStringPromise(response.data);
       
-      const detailResult = result['soap:Envelope']['soap:Body']['DanePobierzPelnyRaportResponse']['DanePobierzPelnyRaportResult'];
+      // Handle multipart response - extract XML from multipart content
+      let xmlContent = response.data;
+      if (typeof xmlContent === 'string' && xmlContent.includes('Content-Type: application/xop+xml')) {
+        // Extract XML from multipart response
+        const xmlStart = xmlContent.indexOf('<s:Envelope');
+        const xmlEnd = xmlContent.lastIndexOf('</s:Envelope>') + '</s:Envelope>'.length;
+        if (xmlStart !== -1 && xmlEnd !== -1) {
+          xmlContent = xmlContent.substring(xmlStart, xmlEnd);
+        }
+      }
+      
+      const result = await parser.parseStringPromise(xmlContent);
+      
+      const detailResult = result['s:Envelope']['s:Body']['DanePobierzPelnyRaportResponse']['DanePobierzPelnyRaportResult'];
       
       if (!detailResult || detailResult.trim() === '') {
         return { success: false, error: 'No detailed data available' };
