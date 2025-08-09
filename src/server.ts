@@ -6,6 +6,7 @@ import { ksefRoutes } from './routes/ksef.js';
 import { ksefMockRoutes } from './mock/ksef-mock-server.js';
 import { gusRoutes } from './routes/gus.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { keepAliveService } from './utils/keepAlive.js';
 
 const app = express();
 
@@ -117,6 +118,16 @@ app.get('/', (req, res) => {
 app.get('/ping', (req, res) => {
   console.log('🏓 Ping requested');
   res.status(200).send('pong');
+});
+
+// Keep-alive status endpoint
+app.get('/keep-alive/status', (req, res) => {
+  console.log('⏰ Keep-alive status requested');
+  const status = keepAliveService.getStatus();
+  res.status(200).json({
+    keepAlive: status,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Error handling

@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import app from './server.js';
+import { keepAliveService } from './utils/keepAlive.js';
 
 // Load environment variables first
 dotenv.config();
@@ -17,10 +18,8 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`🎯 Health check available at: http://${HOST}:${PORT}/health`);
   console.log(`📊 Ready to accept connections`);
   
-  // Keep alive heartbeat
-  setInterval(() => {
-    console.log(`💓 Server heartbeat - uptime: ${Math.floor(process.uptime())}s`);
-  }, 30000); // Every 30 seconds
+  // Start keep-alive service to prevent Render from spinning down
+  keepAliveService.start();
 });
 
 server.on('error', (error: any) => {
@@ -38,6 +37,7 @@ server.headersTimeout = 120000; // 2 minutes
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
   console.log('📡 SIGTERM received, shutting down gracefully');
+  keepAliveService.stop();
   server.close(() => {
     console.log('👋 Process terminated gracefully');
     process.exit(0);
@@ -46,6 +46,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('📡 SIGINT received, shutting down gracefully');
+  keepAliveService.stop();
   server.close(() => {
     console.log('👋 Process terminated gracefully');
     process.exit(0);

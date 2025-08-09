@@ -13,6 +13,7 @@ This backend server provides proxy endpoints for KSeF API integration and GUS RE
 - **Invoice Operations**: Send invoices and check their status
 - **Company Data**: Fetch detailed Polish company information
 - **Per-Request Environment Selection**: Choose test or production environment for each API call
+- **Keep-Alive Service**: Prevents hosting platform spin-down with intelligent health monitoring
 - **Error Handling**: Comprehensive error handling and logging
 - **Security**: CORS protection, helmet security headers, compression
 
@@ -37,15 +38,37 @@ KSEF_API_URL=https://ksef-test.mf.gov.pl
 
 # Optional: GUS REGON API (for production company data)
 GUS_API_KEY=your-registered-gus-api-key
+
+# Optional: Keep-Alive Service Configuration
+KEEP_ALIVE_ENABLED=true
+KEEP_ALIVE_INTERVAL=10
+RENDER_EXTERNAL_URL=https://your-app.onrender.com
 ```
 
 For production, change to:
 ```env
 KSEF_API_URL=https://ksef.mf.gov.pl
 GUS_API_KEY=your-production-gus-api-key
+KEEP_ALIVE_ENABLED=true
+RENDER_EXTERNAL_URL=https://your-production-app.onrender.com
 ```
 
 **Note:** The GUS REGON API works without any environment variables and supports per-request environment selection.
+
+### Keep-Alive Service
+
+The backend includes an intelligent keep-alive service to prevent hosting platform spin-down (especially useful for free tiers like Render):
+
+- **Automatic Activation**: Only runs in production environment
+- **Configurable Interval**: Pings health endpoint every 10 minutes (configurable)
+- **Status Monitoring**: Available at `/keep-alive/status` endpoint
+- **Graceful Shutdown**: Properly stops when server shuts down
+- **Environment Aware**: Disabled in development to avoid unnecessary pings
+
+**Environment Variables:**
+- `KEEP_ALIVE_ENABLED` - Enable/disable service (default: true in production)
+- `KEEP_ALIVE_INTERVAL` - Ping interval in minutes (default: 10)
+- `RENDER_EXTERNAL_URL` - Your app's external URL for health pings
 
 ### 3. Development
 
@@ -638,6 +661,34 @@ GUS service health check
 }
 ```
 
+### Keep-Alive Service Endpoints
+
+#### GET `/keep-alive/status`
+Monitor keep-alive service status and statistics
+
+**Response:**
+```json
+{
+  "keepAlive": {
+    "enabled": true,
+    "running": true,
+    "config": {
+      "url": "https://your-app.onrender.com",
+      "intervalMinutes": 10
+    },
+    "stats": {
+      "totalPings": 42,
+      "successfulPings": 41,
+      "successRate": "97.6%",
+      "lastPingTime": "2025-08-09T10:25:00.000Z",
+      "lastPingSuccess": true,
+      "nextPingIn": "10 minutes"
+    }
+  },
+  "timestamp": "2025-08-09T10:30:00.000Z"
+}
+```
+
 ## Development Workflow
 
 1. Start backend: `npm run dev` (runs on port 3001)
@@ -760,3 +811,16 @@ For other hosting platforms:
 
 **GET** `/health` - Returns server status and timestamp
 **GET** `/api/gus/health` - Returns GUS REGON API status
+**GET** `/keep-alive/status` - Returns keep-alive service status and statistics
+
+### Keep-Alive Service
+
+The keep-alive service helps maintain your deployment on hosting platforms that spin down inactive services:
+
+- **Production Only**: Automatically enabled only in production environment
+- **Smart Pinging**: Sends health check requests every 10 minutes to keep service active
+- **Status Monitoring**: Track ping success rates and service health
+- **Zero Configuration**: Works out-of-the-box with sensible defaults
+- **Resource Efficient**: Minimal overhead with configurable intervals
+
+This is particularly useful for free tier hosting (like Render) that may spin down services after periods of inactivity.
